@@ -54,10 +54,10 @@ function findMothsTime(sheet) {
   return null;
 }
 
-// "tick" | "cross" | "HH:MM" (moved time) | "error"
-function slotStatus(sheet, mothsTime) {
+// "tick" | "cross" | "future" | "HH:MM" (moved time) | "error"
+function slotStatus(isoDate, sheet, mothsTime, cutoffIso) {
   if (mothsTime === undefined) return "error";
-  if (mothsTime === null)      return "cross";
+  if (mothsTime === null)      return isoDate > cutoffIso ? "future" : "cross";
   if (mothsTime === "10:00")   return "tick";
   return mothsTime;
 }
@@ -168,16 +168,20 @@ async function scrapeMothsRollUps(memberId, pin) {
   const results = entries;
   const sheetMap = Object.fromEntries(results);
 
+  const cutoff = new Date(todayIso + "T12:00:00Z");
+  cutoff.setUTCDate(cutoff.getUTCDate() + 14);
+  const cutoffIso = cutoff.toISOString().split("T")[0];
+
   const rows = weeks.map(({ mon, thu }) => {
     const monMothsTime = findMothsTime(sheetMap[mon]);
     const thuMothsTime = findMothsTime(sheetMap[thu]);
     return {
       monIso: mon,
       monDisplay: toDisplayDate(mon),
-      monStatus: slotStatus(sheetMap[mon], monMothsTime),
+      monStatus: slotStatus(mon, sheetMap[mon], monMothsTime, cutoffIso),
       thuIso: thu,
       thuDisplay: toDisplayDate(thu),
-      thuStatus: slotStatus(sheetMap[thu], thuMothsTime),
+      thuStatus: slotStatus(thu, sheetMap[thu], thuMothsTime, cutoffIso),
     };
   });
 

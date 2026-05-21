@@ -175,10 +175,11 @@
       border-left: 1px solid #ececec;
     }
 
-    .status-tick  { color: #1e8449; }
-    .status-cross { color: #c0392b; }
-    .status-time  { color: #b7770d; font-size: 12px; }
-    .status-error { color: #aaa;    font-size: 11px; }
+    .status-tick   { color: #1e8449; }
+    .status-cross  { color: #c0392b; }
+    .status-time   { color: #b7770d; font-size: 12px; }
+    .status-future { color: #ccc; }
+    .status-error  { color: #aaa;    font-size: 11px; }
 
     .today-row td { background: #f0f7ff; }
 
@@ -262,6 +263,7 @@
       <span><span class="status-tick">✓</span> 10:00 as expected</span>
       <span><span class="status-time">11:00</span> moved to that time</span>
       <span><span class="status-cross">✗</span> not booked</span>
+      <span><span class="status-future">–</span> not open yet</span>
     </div>
     <div class="footer-btns">
       <span class="reset-btn" onclick="refresh()">↻ Refresh</span>
@@ -320,9 +322,10 @@ async function startFetch() {
 }
 
 function statusHtml(status) {
-  if (status === 'tick')  return '<span class="status-tick">✓</span>';
-  if (status === 'cross') return '<span class="status-cross">✗</span>';
-  if (status === 'error') return '<span class="status-error">?</span>';
+  if (status === 'tick')   return '<span class="status-tick">✓</span>';
+  if (status === 'cross')  return '<span class="status-cross">✗</span>';
+  if (status === 'future') return '<span class="status-future">–</span>';
+  if (status === 'error')  return '<span class="status-error">?</span>';
   return `<span class="status-time">${status}</span>`;
 }
 
