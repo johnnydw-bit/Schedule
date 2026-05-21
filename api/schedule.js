@@ -234,8 +234,9 @@ async function scrapeSchedule(memberId, pin) {
       const href = cells.length > 3 ? $(cells[3]).find("a").attr("href") || null : null;
       const link = href ? (href.startsWith("http") ? href : `${BASE_URL}/${href.replace(/^\//,"")}`) : null;
       const displayDate = timeText ? `${timeText} ${dateText}` : dateText;
-      items.push({ id:`item-${++idCounter}`, type:"tee-time", title:"Tee Time",
-        date:parseDateToISO(displayDate), displayDate, time:timeText||null,
+      const slotType = /roll.?up/i.test(displayDate) ? "roll-up" : "tee-time";
+      items.push({ id:`item-${++idCounter}`, type:slotType, title:slotType==="roll-up"?"Roll Up":"Tee Time",
+        date:parseDateToISO(displayDate), displayDate, time:extractTime(displayDate)||null,
         link, players:playersText, daysLeft:null, playByDate:null, isPlayBy:false, isDateTbc:false });
     });
   }
@@ -253,8 +254,9 @@ async function scrapeSchedule(memberId, pin) {
   items.filter(i => (i.type === "tee-time" || i.type === "roll-up") && i.time).forEach(item => {
     const sheet = sheets[item.date];
     if (!sheet) return;
-    // Zero-pad to HH:MM to match sheet keys
-    const t = item.time.substring(0, 5).replace(/^(\d):/, "0$1:");
+    // Normalise to zero-padded HH:MM to match sheet keys
+    const rawT = extractTime(item.time) || item.time;
+    const t = rawT.replace(/^(\d):/, "0$1:");
     const names = sheet[t];
     if (names && names.length) item.players = names.join(", ");
   });
