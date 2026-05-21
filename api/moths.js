@@ -150,16 +150,25 @@ async function scrapeMothsRollUps(memberId, pin) {
 
   const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-  const results = await Promise.all(
-    allDates.map(async d => {
-      let sheet = await fetchTeeSheet(client, cookieSnapshot, d);
-      if (sheet === null) {
-        await sleep(800);
-        sheet = await fetchTeeSheet(client, cookieSnapshot, d);
-      }
-      return [d, sheet];
-    })
-  );
+  // Fetch in batches of 4 to avoid overwhelming the club's server
+  const BATCH = 4;
+  const entries = [];
+  for (let i = 0; i < allDates.length; i += BATCH) {
+    const batch = allDates.slice(i, i + BATCH);
+    const batchResults = await Promise.all(
+      batch.map(async d => {
+        let sheet = await fetchTeeSheet(client, cookieSnapshot, d);
+        if (sheet === null) {
+          await sleep(600);
+          sheet = await fetchTeeSheet(client, cookieSnapshot, d);
+        }
+        return [d, sheet];
+      })
+    );
+    entries.push(...batchResults);
+    if (i + BATCH < allDates.length) await sleep(300);
+  }
+  const results = entries;
   const sheetMap = Object.fromEntries(results);
 
   const rows = weeks.map(({ mon, thu }) => {
