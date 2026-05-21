@@ -76,6 +76,27 @@ function extractTime(display) {
   return m ? m[1] : null;
 }
 
+async function fetchTeePlayers(client, cookieHeader, url) {
+  try {
+    const resp = await client.get(url, {
+      headers: { Cookie: cookieHeader },
+      timeout: REQUEST_TIMEOUT,
+    });
+    const $p = cheerio.load(resp.data);
+    const names = [];
+    $p("#teebooking_players table tbody tr").each((_i, row) => {
+      const cell = $p(row).find("td:nth-child(2)");
+      // Named players are in <i> or <b>; empty slots contain "Enter Details" links
+      const raw = cell.find("i, b").first().text()
+        .replace(/\(you\)/i, "").trim();
+      if (raw && !/enter details/i.test(raw)) names.push(raw);
+    });
+    return names;
+  } catch {
+    return null;
+  }
+}
+
 async function scrapeSchedule(memberId, pin) {
   const cookieJar = {};
   function setCookies(header) {
@@ -192,6 +213,17 @@ async function scrapeSchedule(memberId, pin) {
         link, players:playersText, daysLeft:null, playByDate:null, isPlayBy:false, isDateTbc:false });
     });
   }
+
+  // Enrich tee-time items with player names from their detail pages (parallel)
+  const cookieSnapshot = getCookieHeader();
+  await Promise.all(
+    items
+      .filter(i => i.type === "tee-time" && i.link)
+      .map(async item => {
+        const names = await fetchTeePlayers(client, cookieSnapshot, item.link);
+        if (names && names.length > 0) item.players = names.join(", ");
+      })
+  );
 
   const today = new Date().toISOString().split("T")[0];
   return {

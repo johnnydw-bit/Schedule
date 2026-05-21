@@ -349,7 +349,9 @@ function renderResults(data) {
     const href = item.link
       ? (item.link.startsWith('http') ? item.link : 'https://www.bramleygolfclub.co.uk/' + item.link.replace(/^\//, ''))
       : null;
-    const linkHtml = href
+    // For tee times we now show player names inline; only fall back to the link if names weren't scraped
+    const showLink = href && !(item.type === 'tee-time' && item.players);
+    const linkHtml = showLink
       ? `<a class="entry-link" href="${href}" target="_blank">&#8594; ${item.type==='tee-time'?'View':'Details/Result'}</a>`
       : '';
 
