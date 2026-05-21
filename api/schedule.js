@@ -91,15 +91,29 @@ async function fetchTeeSheet(client, cookieHeader, isoDate) {
     const $s = cheerio.load(resp.data);
     const sheet = {};
     $s("table#member_teetimes tbody tr").each((_i, row) => {
-      const timeText = $s(row).find("th.slot-time").text().trim(); // e.g. "09:50"
-      if (!timeText) return;
+      const rawTime = $s(row).find("th.slot-time").text().trim();
+      if (!rawTime) return;
+      // Zero-pad to HH:MM so "9:50" matches "09:50"
+      const time = rawTime.replace(/^(\d):/, "0$1:");
       const names = [];
-      $s(row).find("span.player-name").each((_j, el) => {
-        const inner = $s(el).find("> span").first();
-        const name = inner.clone().find(".junior-icon").remove().end().text().trim();
-        if (name && !/^(anonymous|an other)$/i.test(name)) names.push(name);
-      });
-      if (names.length) sheet[timeText] = names;
+
+      // Roll-up rows: signed-up list is in .rollup-info .rollup-entrants-list i
+      const rollupSignups = $s(row).find(".rollup-info .rollup-entrants-list i").first();
+      if (rollupSignups.length) {
+        rollupSignups.text().split(",").forEach(n => {
+          const name = n.trim();
+          if (name) names.push(name);
+        });
+      } else {
+        // Regular tee time: player names in span.player-name > span
+        $s(row).find("span.player-name").each((_j, el) => {
+          const inner = $s(el).find("> span").first();
+          const name = inner.clone().find(".junior-icon").remove().end().text().trim();
+          if (name && !/^(anonymous|an other)$/i.test(name)) names.push(name);
+        });
+      }
+
+      if (names.length) sheet[time] = names;
     });
     return sheet;
   } catch {
@@ -224,19 +238,21 @@ async function scrapeSchedule(memberId, pin) {
     });
   }
 
-  // Enrich tee-time items from the day's tee sheet (one fetch per unique date)
+  // Enrich tee-time and roll-up items from the day's tee sheet (one fetch per unique date)
   const cookieSnapshot = getCookieHeader();
   const teeDates = [...new Set(
-    items.filter(i => i.type === "tee-time" && i.date && i.date !== "TBC" && i.time).map(i => i.date)
+    items
+      .filter(i => (i.type === "tee-time" || i.type === "roll-up") && i.date && i.date !== "TBC" && i.time)
+      .map(i => i.date)
   )];
   const sheets = Object.fromEntries(
     await Promise.all(teeDates.map(async d => [d, await fetchTeeSheet(client, cookieSnapshot, d)]))
   );
-  items.filter(i => i.type === "tee-time" && i.time).forEach(item => {
+  items.filter(i => (i.type === "tee-time" || i.type === "roll-up") && i.time).forEach(item => {
     const sheet = sheets[item.date];
     if (!sheet) return;
-    // Normalise time to HH:MM (strip seconds if present)
-    const t = item.time.substring(0, 5);
+    // Zero-pad to HH:MM to match sheet keys
+    const t = item.time.substring(0, 5).replace(/^(\d):/, "0$1:");
     const names = sheet[t];
     if (names && names.length) item.players = names.join(", ");
   });
