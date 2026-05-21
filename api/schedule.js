@@ -3,6 +3,11 @@ import * as cheerio from "cheerio";
 
 const BASE_URL = "https://www.bramleygolfclub.co.uk";
 const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+const REQUEST_TIMEOUT = 8000;
+
+// Lock CORS to the deployed origin. Set ALLOWED_ORIGIN env var in Vercel if the
+// deployment URL changes; falls back to localhost for local dev.
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "http://localhost:3000";
 
 function parseDateToISO(displayDate) {
   const now = new Date();
@@ -88,9 +93,12 @@ async function scrapeSchedule(memberId, pin) {
 
   const client = axios.create({
     baseURL: BASE_URL,
-    headers: { "User-Agent": USER_AGENT,
+    timeout: REQUEST_TIMEOUT,
+    headers: {
+      "User-Agent": USER_AGENT,
       Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      "Accept-Language": "en-GB,en;q=0.5" },
+      "Accept-Language": "en-GB,en;q=0.5",
+    },
     withCredentials: true,
     maxRedirects: 5,
     validateStatus: s => s < 500,
@@ -122,10 +130,19 @@ async function scrapeSchedule(memberId, pin) {
     { headers: { Cookie:getCookieHeader(), Referer:`${BASE_URL}/ttbconsent.php` } });
   setCookies(hr.headers["set-cookie"]);
   const homeHtml = hr.data;
+
   if (typeof homeHtml==="string" && (homeHtml.includes('action="/login.php"') || homeHtml.includes("Please log in")))
     throw new Error("INVALID_CREDENTIALS");
 
   const $ = cheerio.load(homeHtml);
+
+  // Sanity-check that the page looks like the member home we expect.
+  // If the club updates their site structure this will throw a clear error
+  // rather than silently returning empty results.
+  if ($("table.myupcoming").length === 0 && $("h3").filter((_i,el) => $(el).text().toLowerCase().includes("my tee times")).length === 0) {
+    throw new Error("UNEXPECTED_PAGE_STRUCTURE");
+  }
+
   const items = [];
   let idCounter = 0;
 
@@ -135,6 +152,14 @@ async function scrapeSchedule(memberId, pin) {
     const title = $(cells[0]).text().trim();
     const dateText = $(cells[1]).text().trim();
     if (!title || !dateText) return;
+
+    // Cell 2 (if present and not a link cell) may contain players/partners
+    const hasLinkCell = $(cells[cells.length-1]).find("a").length > 0;
+    const middleCellCount = cells.length - 2 - (hasLinkCell ? 1 : 0);
+    const players = middleCellCount > 0
+      ? $(cells[2]).text().trim() || null
+      : null;
+
     const href = $(cells[cells.length-1]).find("a").attr("href") || null;
     const link = href ? (href.startsWith("http") ? href : `${BASE_URL}/${href.replace(/^\//,"")}`) : null;
     const isPlayBy = /days?\s+left\s+to\s+play/i.test(dateText);
@@ -147,7 +172,7 @@ async function scrapeSchedule(memberId, pin) {
     }
     items.push({ id:`item-${++idCounter}`, type:classifyType(title), title,
       date:parseDateToISO(dateText), displayDate:dateText, time:extractTime(dateText),
-      link, players:null, daysLeft, playByDate, isPlayBy, isDateTbc });
+      link, players, daysLeft, playByDate, isPlayBy, isDateTbc });
   });
 
   const teeHeader = $("h3").filter((_i,el) => $(el).text().trim().toLowerCase().includes("my tee times"));
@@ -184,9 +209,14 @@ async function scrapeSchedule(memberId, pin) {
 }
 
 export default async function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  const origin = req.headers.origin || "";
+  // Allow the configured origin and any Vercel preview deployments for this project
+  const allowed = origin === ALLOWED_ORIGIN || /^https:\/\/schedule(-[a-z0-9]+)*\.vercel\.app$/.test(origin);
+  res.setHeader("Access-Control-Allow-Origin", allowed ? origin : ALLOWED_ORIGIN);
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Vary", "Origin");
+
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "POST required" });
 
@@ -198,11 +228,10 @@ export default async function handler(req, res) {
     return res.status(200).json({ status: "done", ...result });
   } catch(err) {
     const message = err instanceof Error ? err.message : String(err);
-    return res.status(message === "INVALID_CREDENTIALS" ? 401 : 502).json({
-      status: "error",
-      message: message === "INVALID_CREDENTIALS"
-        ? "Invalid credentials — check your Member ID and PIN."
-        : "Failed to fetch schedule. Please try again.",
-    });
+    if (message === "INVALID_CREDENTIALS")
+      return res.status(401).json({ status: "error", message: "Invalid credentials — check your Member ID and PIN." });
+    if (message === "UNEXPECTED_PAGE_STRUCTURE")
+      return res.status(502).json({ status: "error", message: "The club website structure has changed — the schedule scraper needs updating." });
+    return res.status(502).json({ status: "error", message: "Failed to fetch schedule. Please try again." });
   }
 }
