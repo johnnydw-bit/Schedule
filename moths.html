@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+  <title>Moths Roll Up Tracker</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f0f2f5;
+      min-height: 100vh;
+      padding: 16px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 14px;
+      overflow: hidden;
+      max-width: 480px;
+      margin: 0 auto;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+    }
+
+    .header {
+      background: #1a3a5c;
+      color: #fff;
+      padding: 18px 20px 14px;
+    }
+    .header h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
+    .header a {
+      display: inline-block;
+      margin-top: 6px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.6);
+      text-decoration: none;
+    }
+    .header a:hover { color: rgba(255,255,255,0.9); }
+
+    /* ── Login form ── */
+    .form-body { padding: 20px; }
+    .field { margin-bottom: 14px; }
+    .field label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #555;
+      margin-bottom: 5px;
+    }
+    .field input {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1.5px solid #ddd;
+      border-radius: 10px;
+      font-size: 16px;
+      font-family: inherit;
+      color: #111;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .field input:focus { border-color: #1a3a5c; }
+
+    .btn {
+      width: 100%;
+      padding: 14px;
+      background: #1a3a5c;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      margin-top: 4px;
+      transition: opacity 0.15s;
+    }
+    .btn:active { opacity: 0.85; }
+    .btn:disabled { opacity: 0.5; cursor: default; }
+
+    .error-msg {
+      color: #c0392b;
+      font-size: 13px;
+      text-align: center;
+      margin-top: 12px;
+      display: none;
+    }
+
+    /* ── Loading ── */
+    #loading {
+      display: none;
+      padding: 40px 20px;
+      text-align: center;
+    }
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #eee;
+      border-top-color: #1a3a5c;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loading p { color: #777; font-size: 14px; }
+
+    /* ── Results ── */
+    #results { display: none; }
+
+    .results-header {
+      padding: 12px 20px 10px;
+      border-bottom: 1px solid #f0f0f0;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+    .results-header .title { font-size: 13px; font-weight: 700; color: #333; }
+    .results-header .as-of { font-size: 11px; color: #aaa; }
+
+    /* ── Table ── */
+    .moths-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .moths-table thead tr {
+      background: #f7f8fa;
+    }
+    .moths-table thead th {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #888;
+      padding: 8px 0 8px 16px;
+    }
+    .moths-table thead th:last-child { padding-right: 16px; }
+    .moths-table thead th.day-head {
+      color: #1a3a5c;
+      border-bottom: 2px solid #1a3a5c;
+      width: 50%;
+    }
+    .moths-table thead th.status-head {
+      width: 1px;
+      white-space: nowrap;
+      padding-left: 6px;
+      padding-right: 14px;
+    }
+
+    .moths-table tbody tr { border-bottom: 1px solid #f5f5f5; }
+    .moths-table tbody tr:last-child { border-bottom: none; }
+    .moths-table tbody tr.past-week { opacity: 0.5; }
+
+    .moths-table td {
+      padding: 7px 6px 7px 16px;
+      font-size: 13px;
+    }
+    .moths-table td.date-cell {
+      color: #333;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .moths-table td.status-cell {
+      text-align: center;
+      padding-left: 4px;
+      padding-right: 14px;
+      font-size: 14px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    /* divider between Mon and Thu pairs */
+    .moths-table td.date-cell:nth-child(3) {
+      border-left: 1px solid #ececec;
+    }
+
+    .status-tick  { color: #1e8449; }
+    .status-cross { color: #c0392b; }
+    .status-time  { color: #b7770d; font-size: 12px; }
+    .status-error { color: #aaa;    font-size: 11px; }
+
+    .today-row td { background: #f0f7ff; }
+
+    /* ── Legend ── */
+    .legend {
+      display: flex;
+      gap: 16px;
+      padding: 10px 16px;
+      border-top: 1px solid #f0f0f0;
+      font-size: 11px;
+      color: #888;
+      flex-wrap: wrap;
+    }
+    .legend span { display: flex; align-items: center; gap: 5px; }
+
+    /* ── Footer ── */
+    .footer-btns {
+      text-align: center;
+      padding: 14px 20px 18px;
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      border-top: 1px solid #f0f0f0;
+    }
+    .reset-btn {
+      color: #888;
+      font-size: 13px;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <div class="header">
+    <h1>🦋 Moths Roll Up Tracker</h1>
+    <a href="index.html">← My Schedule</a>
+  </div>
+
+  <!-- Login -->
+  <div id="login">
+    <div class="form-body">
+      <div class="field">
+        <label>Member ID / Email</label>
+        <input id="member_id" type="email" inputmode="email"
+               autocomplete="email" placeholder="your@email.com"/>
+      </div>
+      <div class="field">
+        <label>PIN</label>
+        <input id="pin" type="password" inputmode="numeric"
+               autocomplete="current-password" placeholder="••••"/>
+      </div>
+      <button class="btn" id="go-btn" onclick="startFetch()">Check Schedule</button>
+      <div class="error-msg" id="err"></div>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div id="loading" style="display:none">
+    <div class="spinner"></div>
+    <p id="loading-msg">Fetching roll up schedule…</p>
+  </div>
+
+  <!-- Results -->
+  <div id="results" style="display:none">
+    <div class="results-header">
+      <span class="title">Mon &amp; Thu · 10am Roll Up</span>
+      <span id="as-of" class="as-of"></span>
+    </div>
+    <table class="moths-table">
+      <thead>
+        <tr>
+          <th class="day-head" colspan="2">Monday</th>
+          <th class="day-head" colspan="2">Thursday</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="legend">
+      <span><span class="status-tick">✓</span> 10:00 as expected</span>
+      <span><span class="status-time">11:00</span> moved to that time</span>
+      <span><span class="status-cross">✗</span> not booked</span>
+    </div>
+    <div class="footer-btns">
+      <span class="reset-btn" onclick="refresh()">↻ Refresh</span>
+      <span class="reset-btn" onclick="changeAccount()">Change account</span>
+    </div>
+  </div>
+</div>
+
+<script>
+let fetching = false;
+let savedCredentials = null;
+
+function show(id) {
+  ['login','loading','results'].forEach(s => {
+    document.getElementById(s).style.display = s === id ? 'block' : 'none';
+  });
+}
+
+async function startFetch() {
+  if (fetching) return;
+  const memberId = document.getElementById('member_id').value.trim();
+  const pin      = document.getElementById('pin').value.trim();
+  const errEl    = document.getElementById('err');
+  const btn      = document.getElementById('go-btn');
+
+  errEl.style.display = 'none';
+  if (!memberId || !pin) {
+    errEl.textContent = 'Please enter your Member ID and PIN.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  fetching = true;
+  btn.disabled = true;
+  show('loading');
+  document.getElementById('loading-msg').textContent = 'Fetching roll up schedule… (this may take 20–30 seconds)';
+
+  try {
+    const resp = await fetch('/api/moths', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({member_id: memberId, pin}),
+    });
+    const data = await resp.json();
+    if (data.status === 'error') throw new Error(data.message);
+    savedCredentials = { memberId, pin };
+    renderResults(data);
+  } catch(e) {
+    show('login');
+    errEl.textContent = e.message || 'Could not connect — please try again.';
+    errEl.style.display = 'block';
+  } finally {
+    fetching = false;
+    btn.disabled = false;
+  }
+}
+
+function statusHtml(status) {
+  if (status === 'tick')  return '<span class="status-tick">✓</span>';
+  if (status === 'cross') return '<span class="status-cross">✗</span>';
+  if (status === 'error') return '<span class="status-error">?</span>';
+  return `<span class="status-time">${status}</span>`;
+}
+
+function renderResults(data) {
+  const today = new Date().toISOString().split('T')[0];
+  const tbody = document.getElementById('rows');
+  tbody.innerHTML = '';
+
+  (data.rows || []).forEach(row => {
+    const isCurrentWeek = row.monIso <= today && today <= row.thuIso;
+    const isPast = row.thuIso < today;
+    const tr = document.createElement('tr');
+    if (isCurrentWeek) tr.className = 'today-row';
+    else if (isPast)   tr.className = 'past-week';
+
+    tr.innerHTML = `
+      <td class="date-cell">${row.monDisplay}</td>
+      <td class="status-cell">${statusHtml(row.monStatus)}</td>
+      <td class="date-cell">${row.thuDisplay}</td>
+      <td class="status-cell">${statusHtml(row.thuStatus)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('as-of').textContent =
+    `Fetched ${new Date(data.fetchedAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}`;
+
+  show('results');
+}
+
+async function refresh() {
+  if (!savedCredentials) { changeAccount(); return; }
+  if (fetching) return;
+  fetching = true;
+  show('loading');
+  document.getElementById('loading-msg').textContent = 'Refreshing roll up schedule…';
+  try {
+    const resp = await fetch('/api/moths', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ member_id: savedCredentials.memberId, pin: savedCredentials.pin }),
+    });
+    const data = await resp.json();
+    if (data.status === 'error') throw new Error(data.message);
+    renderResults(data);
+  } catch(e) {
+    show('results');
+  } finally {
+    fetching = false;
+  }
+}
+
+function changeAccount() {
+  savedCredentials = null;
+  document.getElementById('member_id').value = '';
+  document.getElementById('pin').value = '';
+  document.getElementById('err').style.display = 'none';
+  show('login');
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('login').style.display !== 'none') {
+    startFetch();
+  }
+});
+</script>
+</body>
+</html>
