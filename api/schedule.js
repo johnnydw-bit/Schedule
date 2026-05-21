@@ -84,7 +84,7 @@ function isoToSheetDate(iso) {
 // Fetch the day's tee sheet and return a map of "HH:MM" -> ["name", ...]
 async function fetchTeeSheet(client, cookieHeader, isoDate) {
   try {
-    const resp = await client.get(`/teetimes.php?date=${isoToSheetDate(isoDate)}`, {
+    const resp = await client.get(`/memberbooking/?date=${isoToSheetDate(isoDate)}`, {
       headers: { Cookie: cookieHeader },
       timeout: REQUEST_TIMEOUT,
     });
@@ -97,10 +97,12 @@ async function fetchTeeSheet(client, cookieHeader, isoDate) {
       const time = rawTime.replace(/^(\d):/, "0$1:");
       const names = [];
 
-      // Roll-up rows: signed-up list is in .rollup-info .rollup-entrants-list i
-      const rollupSignups = $s(row).find(".rollup-info .rollup-entrants-list i").first();
-      if (rollupSignups.length) {
-        rollupSignups.text().split(",").forEach(n => {
+      // Roll-up rows: find the .rollup-entrants-list div that says "Signed up:"
+      const signedUpDiv = $s(row).find(".rollup-info .rollup-entrants-list").filter((_i, el) =>
+        /signed up/i.test($s(el).text())
+      );
+      if (signedUpDiv.length) {
+        signedUpDiv.find("i").first().text().split(",").forEach(n => {
           const name = n.trim();
           if (name) names.push(name);
         });
