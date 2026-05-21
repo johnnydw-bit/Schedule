@@ -125,6 +125,45 @@ async function fetchTeeSheet(client, cookieHeader, isoDate) {
   }
 }
 
+async function scrapeAvailableFixtures(client, cookieHeader) {
+  try {
+    const resp = await client.get("/matchfixtures/", {
+      headers: { Cookie: cookieHeader },
+      timeout: REQUEST_TIMEOUT,
+    });
+    const $f = cheerio.load(resp.data);
+    const fixtures = [];
+    $f("table.fixtures tbody tr").each((_i, row) => {
+      const cells = $f(row).find("td");
+      if (cells.length < 6) return;
+      if (!/available/i.test($f(cells[5]).text())) return;
+
+      const dateText = $f(cells[0]).text().trim();
+      const hlEl = $f(cells[1]);
+      const hrEl = $f(cells[3]);
+      const bramleyHome = hlEl.find("a[href*='matchresults']").length > 0;
+      const bramleyAway = hrEl.find("a[href*='matchresults']").length > 0;
+      if (!bramleyHome && !bramleyAway) return;
+
+      const squadName = (bramleyHome ? hlEl : hrEl).text().trim();
+      const opponent  = (bramleyHome ? hrEl : hlEl).text().trim();
+      const title     = bramleyHome
+        ? `${squadName} vs ${opponent}`
+        : `${squadName} @ ${opponent}`;
+
+      const detailHref = $f(cells[0]).find("a").attr("href") || null;
+      const link = detailHref
+        ? (detailHref.startsWith("http") ? detailHref : `${BASE_URL}/${detailHref.replace(/^\//,"")}`)
+        : null;
+
+      fixtures.push({ title, date: parseDateToISO(dateText), displayDate: dateText, link });
+    });
+    return fixtures;
+  } catch {
+    return [];
+  }
+}
+
 async function scrapeSchedule(memberId, pin) {
   const cookieJar = {};
   function setCookies(header) {
@@ -245,26 +284,34 @@ async function scrapeSchedule(memberId, pin) {
     });
   }
 
-  // Enrich tee-time and roll-up items from the day's tee sheet (one fetch per unique date)
+  // Fetch tee sheets and available fixtures in parallel
   const cookieSnapshot = getCookieHeader();
   const teeDates = [...new Set(
     items
       .filter(i => (i.type === "tee-time" || i.type === "roll-up") && i.date && i.date !== "TBC" && i.time)
       .map(i => i.date)
   )];
-  const sheets = Object.fromEntries(
-    await Promise.all(teeDates.map(async d => [d, await fetchTeeSheet(client, cookieSnapshot, d)]))
-  );
+  const [sheetEntries, availableFixtures] = await Promise.all([
+    Promise.all(teeDates.map(async d => [d, await fetchTeeSheet(client, cookieSnapshot, d)])),
+    scrapeAvailableFixtures(client, cookieSnapshot),
+  ]);
+  const sheets = Object.fromEntries(sheetEntries);
+
   items.filter(i => (i.type === "tee-time" || i.type === "roll-up") && i.time).forEach(item => {
     const sheet = sheets[item.date];
     if (!sheet) return;
-    // Normalise to zero-padded HH:MM to match sheet keys
     const rawT = extractTime(item.time) || item.time;
     const t = rawT.replace(/^(\d):/, "0$1:");
     const entry = sheet[t];
     if (!entry) return;
     if (entry.names && entry.names.length) item.players = entry.names.join(", ");
     if (entry.title && item.type === "roll-up") item.title = entry.title;
+  });
+
+  availableFixtures.forEach(f => {
+    items.push({ id:`item-${++idCounter}`, type:"available", title:f.title,
+      date:f.date, displayDate:f.displayDate, time:null, link:f.link,
+      players:null, daysLeft:null, playByDate:null, isPlayBy:false, isDateTbc:false });
   });
 
   const today = new Date().toISOString().split("T")[0];

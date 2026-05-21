@@ -309,6 +309,7 @@ function typeInfo(type) {
     'competition': { label:'Competition',colour:'#1e8449' },
     'knockout':    { label:'Knockout',   colour:'#6c3483' },
     'match':       { label:'Match',      colour:'#1a5276' },
+    'available':   { label:'Available',  colour:'#d35400' },
   };
   return map[type] || { label: type, colour: '#555' };
 }
@@ -319,7 +320,9 @@ function renderResults(data) {
   // Summary
   const teeCount  = items.filter(i => i.type==='tee-time'||i.type==='roll-up').length;
   const compCount = items.filter(i => i.type==='competition'||i.type==='knockout'||i.type==='match').length;
-  document.getElementById('summary').textContent = `${teeCount} tee time(s)  ·  ${compCount} competition(s)`;
+  const availCount = items.filter(i => i.type==='available').length;
+  const availPart = availCount ? `  ·  ${availCount} available` : '';
+  document.getElementById('summary').textContent = `${teeCount} tee time(s)  ·  ${compCount} competition(s)${availPart}`;
   document.getElementById('as-of').textContent = `Fetched ${new Date(data.fetchedAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}`;
 
   // Clash detection
