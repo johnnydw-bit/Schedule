@@ -259,7 +259,7 @@ let fetching = false;
 
 function show(id) {
   ['login','loading','results'].forEach(s => {
-    document.getElementById(s).style.display = s === id ? '' : 'none';
+    document.getElementById(s).style.display = s === id ? 'block' : 'none';
   });
 }
 
