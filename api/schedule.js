@@ -136,7 +136,7 @@ async function scrapeAvailableFixtures(client, cookieHeader) {
     $f("table.fixtures tbody tr").each((_i, row) => {
       const cells = $f(row).find("td");
       if (cells.length < 6) return;
-      if (!/available/i.test($f(cells[5]).text())) return;
+      if (!/\bavailable\b/i.test($f(cells[5]).text())) return;
 
       const dateText = $f(cells[0]).text().trim();
       const hlEl = $f(cells[1]);

@@ -251,12 +251,16 @@
     </div>
     <div id="entries"></div>
     <div id="clash-block"></div>
-    <span class="reset-btn" onclick="reset()">← Search again</span>
+    <div style="text-align:center;padding:16px 20px 20px;display:flex;justify-content:center;gap:20px;">
+      <span class="reset-btn" onclick="refresh()">↻ Refresh</span>
+      <span class="reset-btn" onclick="changeAccount()">Change account</span>
+    </div>
   </div>
 </div>
 
 <script>
 let fetching = false;
+let savedCredentials = null;
 
 function show(id) {
   ['login','loading','results'].forEach(s => {
@@ -291,6 +295,7 @@ async function startFetch() {
     });
     const data = await resp.json();
     if (data.status === 'error') throw new Error(data.message);
+    savedCredentials = { memberId, pin };
     renderResults(data);
   } catch(e) {
     show('login');
@@ -391,6 +396,36 @@ function formatDate(iso) {
   const n = d.getDate();
   const suffix = [,'st','nd','rd'][((n%100)>>3)^1&&n%10] || 'th';
   return `${days[d.getDay()]} ${n}${suffix} ${months[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+async function refresh() {
+  if (!savedCredentials) { changeAccount(); return; }
+  if (fetching) return;
+  fetching = true;
+  show('loading');
+  document.getElementById('loading-msg').textContent = 'Refreshing your schedule…';
+  try {
+    const resp = await fetch('/api/schedule', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ member_id: savedCredentials.memberId, pin: savedCredentials.pin }),
+    });
+    const data = await resp.json();
+    if (data.status === 'error') throw new Error(data.message);
+    renderResults(data);
+  } catch(e) {
+    show('results');
+  } finally {
+    fetching = false;
+  }
+}
+
+function changeAccount() {
+  savedCredentials = null;
+  document.getElementById('member_id').value = '';
+  document.getElementById('pin').value = '';
+  document.getElementById('err').style.display = 'none';
+  show('login');
 }
 
 function reset() {
