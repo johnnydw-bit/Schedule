@@ -102,10 +102,12 @@ async function fetchTeeSheet(client, cookieHeader, isoDate) {
         /signed up/i.test($s(el).text())
       );
       if (signedUpDiv.length) {
+        const compTitle = $s(row).find(".comp-name-text").first().text().trim() || null;
         signedUpDiv.find("i").first().text().split(",").forEach(n => {
           const name = n.trim();
           if (name) names.push(name);
         });
+        if (names.length) sheet[time] = { names, title: compTitle };
       } else {
         // Regular tee time: player names in span.player-name > span
         $s(row).find("span.player-name").each((_j, el) => {
@@ -113,9 +115,8 @@ async function fetchTeeSheet(client, cookieHeader, isoDate) {
           const name = inner.clone().find(".junior-icon").remove().end().text().trim();
           if (name && !/^(anonymous|an other)$/i.test(name)) names.push(name);
         });
+        if (names.length) sheet[time] = { names, title: null };
       }
-
-      if (names.length) sheet[time] = names;
     });
     return sheet;
   } catch {
@@ -259,8 +260,10 @@ async function scrapeSchedule(memberId, pin) {
     // Normalise to zero-padded HH:MM to match sheet keys
     const rawT = extractTime(item.time) || item.time;
     const t = rawT.replace(/^(\d):/, "0$1:");
-    const names = sheet[t];
-    if (names && names.length) item.players = names.join(", ");
+    const entry = sheet[t];
+    if (!entry) return;
+    if (entry.names && entry.names.length) item.players = entry.names.join(", ");
+    if (entry.title && item.type === "roll-up") item.title = entry.title;
   });
 
   const today = new Date().toISOString().split("T")[0];
