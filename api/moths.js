@@ -46,13 +46,14 @@ async function fetchTeeSheet(client, cookieHeader, isoDate) {
   }
 }
 
-// Returns the booked time if a Moths roll-up is on this sheet, otherwise null
+// Returns the booked time of ANY roll-up on this sheet, preferring 10:00.
+// Returns undefined if the fetch failed, null if no roll-up found.
 function findMothsTime(sheet) {
-  if (!sheet) return undefined; // fetch failed — distinguish from "not found"
-  for (const [time, data] of Object.entries(sheet)) {
-    if (data.title && /moths/i.test(data.title)) return time;
-  }
-  return null; // sheet loaded, no moths slot
+  if (!sheet) return undefined;
+  const times = Object.keys(sheet);
+  if (!times.length) return null;
+  if (times.includes("10:00")) return "10:00";
+  return times[0]; // roll-up exists but at a different time
 }
 
 // "tick" | "cross" | "HH:MM" (moved time) | "error"
