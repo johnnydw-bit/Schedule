@@ -255,7 +255,7 @@
 </div>
 
 <script>
-let pollTimer = null;
+let fetching = false;
 
 function show(id) {
   ['login','loading','results'].forEach(s => {
@@ -264,9 +264,11 @@ function show(id) {
 }
 
 async function startFetch() {
+  if (fetching) return;
   const memberId = document.getElementById('member_id').value.trim();
   const pin      = document.getElementById('pin').value.trim();
   const errEl    = document.getElementById('err');
+  const btn      = document.getElementById('go-btn');
 
   errEl.style.display = 'none';
   if (!memberId || !pin) {
@@ -275,6 +277,8 @@ async function startFetch() {
     return;
   }
 
+  fetching = true;
+  btn.disabled = true;
   show('loading');
   document.getElementById('loading-msg').textContent = 'Fetching your schedule…';
 
@@ -291,6 +295,9 @@ async function startFetch() {
     show('login');
     errEl.textContent = e.message || 'Could not connect — please try again.';
     errEl.style.display = 'block';
+  } finally {
+    fetching = false;
+    btn.disabled = false;
   }
 }
 
@@ -340,8 +347,11 @@ function renderResults(data) {
     let nameDisplay = item.title;
     if (item.type==='tee-time' && item.players) nameDisplay = item.players;
 
-    const linkHtml = item.link
-      ? `<a class="entry-link" href="${item.link.startsWith('http')?item.link:'https://www.bramleygolfclub.co.uk/'+item.link.replace(/^\/,'')}" target="_blank">&#8594; ${item.type==='tee-time'?'View':'Details/Result'}</a>`
+    const href = item.link
+      ? (item.link.startsWith('http') ? item.link : 'https://www.bramleygolfclub.co.uk/' + item.link.replace(/^\//, ''))
+      : null;
+    const linkHtml = href
+      ? `<a class="entry-link" href="${href}" target="_blank">&#8594; ${item.type==='tee-time'?'View':'Details/Result'}</a>`
       : '';
 
     const div = document.createElement('div');
