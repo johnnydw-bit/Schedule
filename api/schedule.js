@@ -102,7 +102,8 @@ async function fetchTeeSheet(client, cookieHeader, isoDate) {
         /signed up/i.test($s(el).text())
       );
       if (signedUpDiv.length) {
-        const compTitle = $s(row).find(".comp-name-text").first().text().trim() || null;
+        const compTitle = $s(row).find(".comp-name-text").first().text()
+          .replace(/\s+'/, "'").trim() || null;
         signedUpDiv.find("i").first().text().split(",").forEach(n => {
           const name = n.trim();
           if (name) names.push(name);
