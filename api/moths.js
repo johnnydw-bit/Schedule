@@ -146,8 +146,17 @@ async function scrapeMothsRollUps(memberId, pin) {
   const weeks = buildWeeks(todayIso);
   const allDates = weeks.flatMap(w => [w.mon, w.thu]);
 
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
   const results = await Promise.all(
-    allDates.map(async d => [d, await fetchTeeSheet(client, cookieSnapshot, d)])
+    allDates.map(async d => {
+      let sheet = await fetchTeeSheet(client, cookieSnapshot, d);
+      if (sheet === null) {
+        await sleep(800);
+        sheet = await fetchTeeSheet(client, cookieSnapshot, d);
+      }
+      return [d, sheet];
+    })
   );
   const sheetMap = Object.fromEntries(results);
 
