@@ -197,15 +197,17 @@ async function scrapeSchedule(memberId, pin) {
     const cells = $(row).find("td");
     if (cells.length < 2) return;
     const title = $(cells[0]).text().trim();
-    const dateText = $(cells[1]).text().trim();
+    const hasLinkCell = $(cells[cells.length-1]).find("a").length > 0;
+    const lastDataIdx = hasLinkCell ? cells.length - 1 : cells.length;
+
+    // Concatenate all middle cells — some rows have an extra column that shifts the date
+    const dateText = Array.from({length: lastDataIdx - 1}, (_, i) =>
+      $(cells[i + 1]).text().trim()
+    ).filter(Boolean).join(" ");
     if (!title || !dateText) return;
 
-    // Cell 2 (if present and not a link cell) may contain players/partners
-    const hasLinkCell = $(cells[cells.length-1]).find("a").length > 0;
-    const middleCellCount = cells.length - 2 - (hasLinkCell ? 1 : 0);
-    const players = middleCellCount > 0
-      ? $(cells[2]).text().trim() || null
-      : null;
+    // Players/partner: only meaningful when there are 2+ middle cells
+    const players = (lastDataIdx - 1) > 1 ? $(cells[2]).text().trim() || null : null;
 
     const href = $(cells[cells.length-1]).find("a").attr("href") || null;
     const link = href ? (href.startsWith("http") ? href : `${BASE_URL}/${href.replace(/^\//,"")}`) : null;
