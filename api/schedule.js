@@ -285,7 +285,7 @@ async function scrapeSchedule(memberId, pin) {
 export default async function handler(req, res) {
   const origin = req.headers.origin || "";
   // Allow the configured origin and any Vercel preview deployments for this project
-  const allowed = origin === ALLOWED_ORIGIN || /^https:\/\/schedule(-[a-z0-9]+)*\.vercel\.app$/.test(origin);
+  const allowed = origin === ALLOWED_ORIGIN || /^https:\/\/bramley-schedule(-[a-z0-9]+)*\.vercel\.app$/.test(origin);
   res.setHeader("Access-Control-Allow-Origin", allowed ? origin : ALLOWED_ORIGIN);
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
