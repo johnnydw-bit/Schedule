@@ -76,22 +76,32 @@ function extractTime(display) {
   return m ? m[1] : null;
 }
 
-async function fetchTeePlayers(client, cookieHeader, url) {
+function isoToSheetDate(iso) {
+  const [y, m, d] = iso.split("-");
+  return `${d}-${m}-${y}`;
+}
+
+// Fetch the day's tee sheet and return a map of "HH:MM" -> ["name", ...]
+async function fetchTeeSheet(client, cookieHeader, isoDate) {
   try {
-    const resp = await client.get(url, {
+    const resp = await client.get(`/teetimes.php?date=${isoToSheetDate(isoDate)}`, {
       headers: { Cookie: cookieHeader },
       timeout: REQUEST_TIMEOUT,
     });
-    const $p = cheerio.load(resp.data);
-    const names = [];
-    $p("#teebooking_players table tbody tr").each((_i, row) => {
-      const cell = $p(row).find("td:nth-child(2)");
-      // Named players are in <i> or <b>; empty slots contain "Enter Details" links
-      const raw = cell.find("i, b").first().text()
-        .replace(/\(you\)/i, "").trim();
-      if (raw && !/enter details/i.test(raw)) names.push(raw);
+    const $s = cheerio.load(resp.data);
+    const sheet = {};
+    $s("table#member_teetimes tbody tr").each((_i, row) => {
+      const timeText = $s(row).find("th.slot-time").text().trim(); // e.g. "09:50"
+      if (!timeText) return;
+      const names = [];
+      $s(row).find("span.player-name").each((_j, el) => {
+        const inner = $s(el).find("> span").first();
+        const name = inner.clone().find(".junior-icon").remove().end().text().trim();
+        if (name && !/^(anonymous|an other)$/i.test(name)) names.push(name);
+      });
+      if (names.length) sheet[timeText] = names;
     });
-    return names;
+    return sheet;
   } catch {
     return null;
   }
@@ -214,16 +224,22 @@ async function scrapeSchedule(memberId, pin) {
     });
   }
 
-  // Enrich tee-time items with player names from their detail pages (parallel)
+  // Enrich tee-time items from the day's tee sheet (one fetch per unique date)
   const cookieSnapshot = getCookieHeader();
-  await Promise.all(
-    items
-      .filter(i => i.type === "tee-time" && i.link)
-      .map(async item => {
-        const names = await fetchTeePlayers(client, cookieSnapshot, item.link);
-        if (names && names.length > 0) item.players = names.join(", ");
-      })
+  const teeDates = [...new Set(
+    items.filter(i => i.type === "tee-time" && i.date && i.date !== "TBC" && i.time).map(i => i.date)
+  )];
+  const sheets = Object.fromEntries(
+    await Promise.all(teeDates.map(async d => [d, await fetchTeeSheet(client, cookieSnapshot, d)]))
   );
+  items.filter(i => i.type === "tee-time" && i.time).forEach(item => {
+    const sheet = sheets[item.date];
+    if (!sheet) return;
+    // Normalise time to HH:MM (strip seconds if present)
+    const t = item.time.substring(0, 5);
+    const names = sheet[t];
+    if (names && names.length) item.players = names.join(", ");
+  });
 
   const today = new Date().toISOString().split("T")[0];
   return {
