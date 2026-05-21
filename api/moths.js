@@ -31,12 +31,9 @@ async function fetchTeeSheet(client, cookieHeader, isoDate) {
       const rawTime = $s(row).find("th.slot-time").text().trim();
       if (!rawTime) return;
       const time = rawTime.replace(/^(\d):/, "0$1:");
-      const signedUpDiv = $s(row).find(".rollup-info .rollup-entrants-list").filter((_i, el) =>
-        /signed up/i.test($s(el).text())
-      );
-      if (signedUpDiv.length) {
-        const compTitle = $s(row).find(".comp-name-text").first().text()
-          .replace(/\s+'/, "'").trim() || null;
+      const compNameEl = $s(row).find(".comp-name-text").first();
+      if (compNameEl.length) {
+        const compTitle = compNameEl.text().replace(/\s+'/, "'").trim() || null;
         sheet[time] = { title: compTitle };
       }
     });
