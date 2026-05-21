@@ -152,7 +152,9 @@
       padding: 1px 7px;
       border-radius: 20px;
       line-height: 17px;
+      text-decoration: none;
     }
+    a.badge:active { opacity: 0.75; }
     .entry-name {
       font-size: 13px;
       font-weight: 600;
@@ -349,21 +351,18 @@ function renderResults(data) {
     const href = item.link
       ? (item.link.startsWith('http') ? item.link : 'https://www.bramleygolfclub.co.uk/' + item.link.replace(/^\//, ''))
       : null;
-    // For tee times we now show player names inline; only fall back to the link if names weren't scraped
-    const showLink = href && !(item.type === 'tee-time' && item.players);
-    const linkHtml = showLink
-      ? `<a class="entry-link" href="${href}" target="_blank">&#8594; ${item.type==='tee-time'?'View':'Details/Result'}</a>`
-      : '';
+    const badgeHtml = href
+      ? `<a class="badge" style="background:${colour}" href="${href}" target="_blank">${label}</a>`
+      : `<span class="badge" style="background:${colour}">${label}</span>`;
 
     const div = document.createElement('div');
     div.className = 'entry';
     div.innerHTML = `
       <div class="entry-row">
-        <span class="badge" style="background:${colour}">${label}</span>
+        ${badgeHtml}
         <span class="entry-name">${nameDisplay}${clashHtml}</span>
         <span class="entry-date">${dateDisplay}</span>
       </div>
-      ${linkHtml}
     `;
     container.appendChild(div);
   });
