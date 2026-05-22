@@ -251,7 +251,9 @@ async function scrapeSchedule(memberId, pin) {
     // Players/partner: only meaningful when there are 2+ middle cells
     const players = (lastDataIdx - 1) > 1 ? $(cells[2]).text().trim() || null : null;
 
-    const href = $(cells[cells.length-1]).find("a").attr("href") || null;
+    const href = $(cells[cells.length-1]).find("a").filter((_i, el) =>
+      !/\.ics/i.test($(el).attr("href") || "")
+    ).first().attr("href") || null;
     const link = href ? (href.startsWith("http") ? href : `${BASE_URL}/${href.replace(/^\//,"")}`) : null;
     const isPlayBy = /days?\s+left\s+to\s+play/i.test(dateText);
     const isDateTbc = /awaiting\s+opponent/i.test(dateText);
