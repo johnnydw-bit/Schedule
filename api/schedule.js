@@ -31,6 +31,7 @@ function parseDateToISO(displayDate) {
     if (month !== undefined)
       return new Date(parseInt(withYear[3],10), month, parseInt(withYear[1],10)).toISOString().split("T")[0];
   }
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const withDayName = cleanDate.match(
     /(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun)\s+(\d{1,2})\s+(\w+)(?:\s+(\d{4}))?/i
   );
@@ -39,7 +40,7 @@ function parseDateToISO(displayDate) {
     const year = withDayName[3] ? parseInt(withDayName[3],10) : currentYear;
     if (month !== undefined) {
       const d = new Date(year, month, parseInt(withDayName[1],10));
-      if (d < now && !withDayName[3]) d.setFullYear(currentYear + 1);
+      if (d < today && !withDayName[3]) d.setFullYear(currentYear + 1);
       return d.toISOString().split("T")[0];
     }
   }
@@ -51,7 +52,7 @@ function parseDateToISO(displayDate) {
     const year = timeAndDay[4] ? parseInt(timeAndDay[4],10) : currentYear;
     if (month !== undefined) {
       const d = new Date(year, month, parseInt(timeAndDay[2],10));
-      if (d < now && !timeAndDay[4]) d.setFullYear(currentYear + 1);
+      if (d < today && !timeAndDay[4]) d.setFullYear(currentYear + 1);
       return d.toISOString().split("T")[0];
     }
   }
