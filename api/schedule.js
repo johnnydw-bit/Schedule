@@ -292,8 +292,13 @@ async function scrapeSchedule(memberId, pin) {
       .filter(i => (i.type === "tee-time" || i.type === "roll-up") && i.date && i.date !== "TBC" && i.time)
       .map(i => i.date)
   )];
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
   const [sheetEntries, availableFixtures] = await Promise.all([
-    Promise.all(teeDates.map(async d => [d, await fetchTeeSheet(client, cookieSnapshot, d)])),
+    Promise.all(teeDates.map(async d => {
+      let sheet = await fetchTeeSheet(client, cookieSnapshot, d);
+      if (sheet === null) { await sleep(600); sheet = await fetchTeeSheet(client, cookieSnapshot, d); }
+      return [d, sheet];
+    })),
     scrapeAvailableFixtures(client, cookieSnapshot),
   ]);
   const sheets = Object.fromEntries(sheetEntries);
