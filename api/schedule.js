@@ -277,7 +277,9 @@ async function scrapeSchedule(memberId, pin) {
       const timeText = $(cells[1]).text().trim();
       const playersText = cells.length > 2 ? $(cells[2]).text().trim() : null;
       if (!dateText) return;
-      const href = cells.length > 3 ? $(cells[3]).find("a").attr("href") || null : null;
+      const href = cells.length > 3 ? $(cells[3]).find("a").filter((_i, el) =>
+        !/\.ics/i.test($(el).attr("href") || "")
+      ).first().attr("href") || null : null;
       const link = href ? (href.startsWith("http") ? href : `${BASE_URL}/${href.replace(/^\//,"")}`) : null;
       const displayDate = timeText ? `${timeText} ${dateText}` : dateText;
       const slotType = /roll.?up/i.test(displayDate) ? "roll-up" : "tee-time";
