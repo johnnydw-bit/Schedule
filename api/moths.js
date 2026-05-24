@@ -62,7 +62,7 @@ function slotStatus(sheet, mothsTime) {
   return mothsTime;
 }
 
-// Generate Mon+Thu pairs from Monday-of-current-week for ~3 months
+// Generate Mon+Thu pairs from Monday-of-current-week for ~2 months
 function buildWeeks(todayIso) {
   const from = new Date(todayIso + "T12:00:00Z");
   const day = from.getUTCDay();
@@ -70,7 +70,7 @@ function buildWeeks(todayIso) {
   from.setUTCDate(from.getUTCDate() + daysToMon);
 
   const to = new Date(todayIso + "T12:00:00Z");
-  to.setUTCMonth(to.getUTCMonth() + 3);
+  to.setUTCMonth(to.getUTCMonth() + 2);
 
   const weeks = [];
   while (from <= to) {
