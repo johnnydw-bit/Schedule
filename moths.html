@@ -283,6 +283,83 @@
     }
     .legend span { display: flex; align-items: center; gap: 5px; }
 
+    /* ── Tee sheet panel ── */
+    #sheet-panel {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+    }
+    #sheet-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+    }
+    #sheet-drawer {
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 600px;
+      height: 88vh;
+      background: #fff;
+      border-radius: 16px 16px 0 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 -4px 24px rgba(0,0,0,0.25);
+      animation: slideUp 0.25s ease-out;
+    }
+    @keyframes slideUp {
+      from { transform: translateX(-50%) translateY(100%); }
+      to   { transform: translateX(-50%) translateY(0);    }
+    }
+    #sheet-drawer-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 13px 16px;
+      background: #1a3a5c;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    #sheet-drawer-title {
+      font-size: 15px;
+      font-weight: 700;
+    }
+    #sheet-close-btn {
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.8);
+      font-size: 20px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0 2px;
+    }
+    #sheet-close-btn:hover { color: #fff; }
+    #sheet-drawer-body {
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+    }
+    #sheet-loading {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+    }
+    #sheet-loading p { color: #777; font-size: 14px; }
+    #sheet-iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: none;
+    }
+
     /* ── Footer ── */
     .footer-btns {
       text-align: center;
@@ -419,6 +496,24 @@
   </div>
 </div>
 
+<!-- Tee sheet slide-up panel -->
+<div id="sheet-panel">
+  <div id="sheet-overlay" onclick="closePanel()"></div>
+  <div id="sheet-drawer">
+    <div id="sheet-drawer-header">
+      <span id="sheet-drawer-title">Tee Sheet</span>
+      <button id="sheet-close-btn" onclick="closePanel()" title="Close">✕</button>
+    </div>
+    <div id="sheet-drawer-body">
+      <div id="sheet-loading">
+        <div class="spinner"></div>
+        <p id="sheet-loading-msg">Loading tee sheet…</p>
+      </div>
+      <iframe id="sheet-iframe" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
+    </div>
+  </div>
+</div>
+
 <script>
 let fetching = false;
 let applying = false;
@@ -541,11 +636,11 @@ function buildRowHtml(row) {
   const thuCount = (thuHasRollup && row.thuCount !== null) ? row.thuCount : '';
 
   return `
-    <td class="date-cell"><a href="#" onclick="event.preventDefault();openSheet('${row.monIso}')">${row.monDisplay}</a></td>
+    <td class="date-cell"><a href="#" onclick="event.preventDefault();openSheet('${row.monIso}','${row.monStatus}')">${row.monDisplay}</a></td>
     <td class="status-cell">${statusHtml(row.monStatus)}</td>
     <td class="count-cell">${monCount}</td>
     <td class="entry-cell">${monCbHtml}</td>
-    <td class="date-cell thu-date-cell"><a href="#" onclick="event.preventDefault();openSheet('${row.thuIso}')">${row.thuDisplay}</a></td>
+    <td class="date-cell thu-date-cell"><a href="#" onclick="event.preventDefault();openSheet('${row.thuIso}','${row.thuStatus}')">${row.thuDisplay}</a></td>
     <td class="status-cell">${statusHtml(row.thuStatus)}</td>
     <td class="count-cell">${thuCount}</td>
     <td class="entry-cell">${thuCbHtml}</td>
@@ -709,15 +804,86 @@ async function startFetch() {
   }
 }
 
-async function openSheet(isoDate) {
-  const [y, m, d] = isoDate.split('-');
-  const dest = `https://www.bramleygolfclub.co.uk/memberbooking/?date=${d}-${m}-${y}`;
+function closePanel() {
+  document.getElementById('sheet-panel').style.display = 'none';
+  document.body.style.overflow = '';
+  const iframe = document.getElementById('sheet-iframe');
+  iframe.style.display = 'none';
+  iframe.removeAttribute('srcdoc');
+}
+
+async function openSheet(isoDate, mothsTime) {
+  if (!savedCredentials) return;
+
+  // Build a friendly title
+  const dateObj = new Date(isoDate + 'T12:00:00Z');
+  const days   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  document.getElementById('sheet-drawer-title').textContent =
+    `${days[dateObj.getUTCDay()]} ${dateObj.getUTCDate()} ${months[dateObj.getUTCMonth()]}`;
+
+  // Reset and show panel
+  const iframe = document.getElementById('sheet-iframe');
+  iframe.style.display = 'none';
+  iframe.removeAttribute('srcdoc');
+  const loadingDiv = document.getElementById('sheet-loading');
+  const loadingMsg = document.getElementById('sheet-loading-msg');
+  loadingDiv.style.display = 'flex';
+  loadingMsg.textContent = 'Loading tee sheet… (logging in)';
+  document.getElementById('sheet-panel').style.display = 'block';
+  document.body.style.overflow = 'hidden';
+
   try {
-    await fetch('https://www.bramleygolfclub.co.uk/ttbconsent.php?action=accept', {
-      mode: 'no-cors', credentials: 'include'
+    const resp = await fetch('/api/tee-sheet', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        member_id: savedCredentials.memberId,
+        pin: savedCredentials.pin,
+        date: isoDate,
+      }),
     });
-  } catch(e) { /* ignore — consent may already be accepted */ }
-  window.open(dest, '_blank');
+
+    if (!resp.ok) {
+      loadingMsg.textContent = resp.status === 401
+        ? 'Session expired — please reload.'
+        : 'Failed to load tee sheet. Please try again.';
+      return;
+    }
+
+    const html = await resp.text();
+
+    // One-shot load handler
+    function onIframeLoad() {
+      iframe.removeEventListener('load', onIframeLoad);
+      loadingDiv.style.display = 'none';
+      iframe.style.display = 'block';
+
+      // Scroll to Moths time if known
+      if (mothsTime && mothsTime !== 'cross' && mothsTime !== 'error') {
+        try {
+          const doc = iframe.contentDocument;
+          const ths = doc.querySelectorAll('th.slot-time');
+          for (const th of ths) {
+            if (th.textContent.trim() === mothsTime) {
+              const row = th.closest('tr');
+              row.scrollIntoView({ block: 'center' });
+              row.style.transition = 'background 0.4s';
+              row.style.background = '#fff9c4';
+              setTimeout(() => { row.style.background = ''; }, 2500);
+              break;
+            }
+          }
+        } catch(e) { /* safe to ignore */ }
+      }
+    }
+
+    iframe.addEventListener('load', onIframeLoad);
+    iframe.srcdoc = html;
+
+  } catch(e) {
+    loadingMsg.textContent = 'Could not connect — please try again.';
+  }
 }
 
 async function refresh() {
@@ -757,6 +923,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && document.getElementById('login').style.display !== 'none') {
     startFetch();
   }
+  if (e.key === 'Escape') closePanel();
 });
 </script>
 </body>
