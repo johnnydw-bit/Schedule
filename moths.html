@@ -302,7 +302,7 @@
       transform: translateX(-50%);
       width: 100%;
       max-width: 600px;
-      height: 88vh;
+      max-height: 85vh;
       background: #fff;
       border-radius: 16px 16px 0 0;
       display: flex;
@@ -340,7 +340,7 @@
     #sheet-close-btn:hover { color: #fff; }
     #sheet-drawer-body {
       flex: 1;
-      overflow: hidden;
+      overflow: auto;
       position: relative;
     }
     #sheet-loading {
@@ -355,9 +355,9 @@
     #sheet-loading p { color: #777; font-size: 14px; }
     #sheet-iframe {
       width: 100%;
-      height: 100%;
       border: none;
       display: none;
+      vertical-align: top;
     }
 
     /* ── Footer ── */
@@ -858,10 +858,18 @@ async function openSheet(isoDate, mothsTime) {
     // One-shot load handler
     function onIframeLoad() {
       iframe.removeEventListener('load', onIframeLoad);
+
+      // Size iframe to its content so the panel wraps tightly
+      try {
+        const doc = iframe.contentDocument;
+        const h = doc.documentElement.scrollHeight || doc.body.scrollHeight;
+        iframe.style.height = h + 'px';
+      } catch(e) {}
+
       loadingDiv.style.display = 'none';
       iframe.style.display = 'block';
 
-      // Scroll to Moths time if known
+      // Highlight the Moths row
       if (mothsTime && mothsTime !== 'cross' && mothsTime !== 'error') {
         try {
           const doc = iframe.contentDocument;
@@ -869,14 +877,13 @@ async function openSheet(isoDate, mothsTime) {
           for (const th of ths) {
             if (th.textContent.trim() === mothsTime) {
               const row = th.closest('tr');
-              row.scrollIntoView({ block: 'center' });
               row.style.transition = 'background 0.4s';
               row.style.background = '#fff9c4';
               setTimeout(() => { row.style.background = ''; }, 2500);
               break;
             }
           }
-        } catch(e) { /* safe to ignore */ }
+        } catch(e) {}
       }
     }
 
