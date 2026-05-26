@@ -351,10 +351,15 @@ async function startFetch() {
   }
 }
 
-function sheetUrl(isoDate) {
+async function openSheet(isoDate) {
   const [y, m, d] = isoDate.split('-');
-  const dest = `/memberbooking/?date=${d}-${m}-${y}`;
-  return `https://www.bramleygolfclub.co.uk/ttbconsent.php?action=accept&returnurl=${encodeURIComponent(dest)}`;
+  const dest = `https://www.bramleygolfclub.co.uk/memberbooking/?date=${d}-${m}-${y}`;
+  try {
+    await fetch('https://www.bramleygolfclub.co.uk/ttbconsent.php?action=accept', {
+      mode: 'no-cors', credentials: 'include'
+    });
+  } catch(e) { /* ignore — consent may already be accepted */ }
+  window.open(dest, '_blank');
 }
 
 function statusHtml(status) {
@@ -377,9 +382,9 @@ function renderResults(data) {
     else if (isPast)   tr.className = 'past-week';
 
     tr.innerHTML = `
-      <td class="date-cell"><a href="${sheetUrl(row.monIso)}" target="_blank">${row.monDisplay}</a></td>
+      <td class="date-cell"><a href="#" onclick="event.preventDefault();openSheet('${row.monIso}')">${row.monDisplay}</a></td>
       <td class="status-cell">${statusHtml(row.monStatus)}</td>
-      <td class="date-cell"><a href="${sheetUrl(row.thuIso)}" target="_blank">${row.thuDisplay}</a></td>
+      <td class="date-cell"><a href="#" onclick="event.preventDefault();openSheet('${row.thuIso}')">${row.thuDisplay}</a></td>
       <td class="status-cell">${statusHtml(row.thuStatus)}</td>
     `;
     tbody.appendChild(tr);
