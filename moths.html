@@ -406,8 +406,8 @@
       <tbody id="rows"></tbody>
     </table>
     <div class="legend">
-      <span><span class="status-tick">✓</span> 10:00 as expected</span>
-      <span><span class="status-time">11:00</span> moved to that time</span>
+      <span><span class="status-tick">10:00</span> on time</span>
+      <span><span class="status-time">11:00</span> moved</span>
       <span><span class="status-cross">✗</span> not booked</span>
     </div>
     <div class="footer-btns">
@@ -438,9 +438,9 @@ function show(id) {
 }
 
 function statusHtml(status) {
-  if (status === 'tick')  return '<span class="status-tick">✓</span>';
   if (status === 'cross') return '<span class="status-cross">✗</span>';
   if (status === 'error') return '<span class="status-error">?</span>';
+  if (status === '10:00') return `<span class="status-tick">${status}</span>`;
   return `<span class="status-time">${status}</span>`;
 }
 

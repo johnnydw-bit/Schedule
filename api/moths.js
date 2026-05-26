@@ -25,15 +25,16 @@ function parseRollUpActions($s, row) {
   let withdrawAction = null;
 
   // --- Check <a> links ---
-  $row.find("a[href]").each((_i, el) => {
+  $row.find("a").each((_i, el) => {
     const text = $s(el).text().trim();
     const href = $s(el).attr("href") || "";
-    if (!href || href === "#") return;
-    const fullUrl = href.startsWith("http") ? href : `${BASE_URL}${href.startsWith("/") ? "" : "/"}${href}`;
+    const fullUrl = href && href !== "#"
+      ? (href.startsWith("http") ? href : `${BASE_URL}${href.startsWith("/") ? "" : "/"}${href}`)
+      : null;
     const action = { method: "get", url: fullUrl, fields: {} };
     if (/withdraw|remove/i.test(text)) {
       withdrawAction = withdrawAction || action;
-    } else if (/sign[\s-]?up|join|enter/i.test(text)) {
+    } else if (/sign[\s-]?up|join|enter|book|add/i.test(text)) {
       enterAction = enterAction || action;
     }
   });
@@ -123,11 +124,10 @@ function findMothsTime(sheet) {
   return null;
 }
 
-// "tick" | "cross" | "HH:MM" (moved time) | "error"
+// "cross" | "HH:MM" | "error"  — always return the actual time when booked
 function slotStatus(sheet, mothsTime) {
   if (mothsTime === undefined) return "error";
   if (mothsTime === null)      return "cross";
-  if (mothsTime === "10:00")   return "tick";
   return mothsTime;
 }
 
@@ -213,9 +213,9 @@ async function scrapeMothsRollUps(memberId, pin) {
   const todayIso = new Date().toISOString().split("T")[0];
   const weeks = buildWeeks(todayIso);
 
-  // Only fetch tee sheets within the 2-week booking window
+  // Fetch tee sheets up to 8 weeks out
   const cutoff = new Date(todayIso + "T12:00:00Z");
-  cutoff.setUTCDate(cutoff.getUTCDate() + 14);
+  cutoff.setUTCDate(cutoff.getUTCDate() + 56);
   const cutoffIso = cutoff.toISOString().split("T")[0];
   const fetchDates = weeks.flatMap(w => [w.mon, w.thu]).filter(d => d <= cutoffIso);
 

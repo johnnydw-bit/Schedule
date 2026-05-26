@@ -20,15 +20,16 @@ function parseRollUpActions($s, row) {
   let withdrawAction = null;
 
   // Check <a> links
-  $row.find("a[href]").each((_i, el) => {
+  $row.find("a").each((_i, el) => {
     const text = $s(el).text().trim();
     const href = $s(el).attr("href") || "";
-    if (!href || href === "#") return;
-    const fullUrl = href.startsWith("http") ? href : `${BASE_URL}${href.startsWith("/") ? "" : "/"}${href}`;
+    const fullUrl = href && href !== "#"
+      ? (href.startsWith("http") ? href : `${BASE_URL}${href.startsWith("/") ? "" : "/"}${href}`)
+      : null;
     const action = { method: "get", url: fullUrl, fields: {} };
     if (/withdraw|remove/i.test(text)) {
       withdrawAction = withdrawAction || action;
-    } else if (/sign[\s-]?up|join|enter/i.test(text)) {
+    } else if (/sign[\s-]?up|join|enter|book|add/i.test(text)) {
       enterAction = enterAction || action;
     }
   });
@@ -50,10 +51,8 @@ function parseRollUpActions($s, row) {
       if (name && type !== "submit") fields[name] = value;
     });
 
-    const submitText =
-      $form.find('input[type="submit"]').attr("value") ||
-      $form.find('button[type="submit"],button:not([type])').text().trim() ||
-      "";
+    const submitText = $form.find('input[type="submit"],button[type="submit"],button:not([type])').text().trim() ||
+      $form.find('input[type="submit"]').attr("value") || "";
 
     const formAction = { method, url, fields };
     if (/withdraw|remove/i.test(submitText)) {
