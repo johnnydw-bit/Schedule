@@ -222,10 +222,26 @@ async function executeOneAction(memberId, pin, date, actionType) {
   // 5. Execute
   try {
     if (actionDetails.method === "get") {
-      await client.get(actionDetails.url, {
+      // Disable automatic redirect following so we can manually re-send cookies
+      // on the redirect follow. Axios may strip the Cookie header on automatic
+      // redirects, which causes the server's counter decrement to be skipped
+      // even though the player name is removed.
+      const withdrawResp = await client.get(actionDetails.url, {
         headers: { Cookie: cookieHeader, Referer: `${BASE_URL}/memberbooking/?date=${isoToSheetDate(date)}` },
         timeout: REQUEST_TIMEOUT,
+        maxRedirects: 0,
+        validateStatus: s => s < 400 || s === 302,
       });
+      // Manually follow the redirect with cookies, matching browser behaviour
+      if (withdrawResp.status === 302 && withdrawResp.headers.location) {
+        let loc = withdrawResp.headers.location;
+        if (!loc.startsWith("http"))
+          loc = `${BASE_URL}${loc.startsWith("/") ? "" : "/"}${loc}`;
+        await client.get(loc, {
+          headers: { Cookie: cookieHeader, Referer: actionDetails.url },
+          timeout: REQUEST_TIMEOUT,
+        });
+      }
     } else {
       // POST with form-encoded fields
       await client.post(actionDetails.url,
