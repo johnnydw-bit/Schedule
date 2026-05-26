@@ -178,6 +178,11 @@
       font-weight: 500;
       white-space: nowrap;
     }
+    .moths-table td.date-cell a {
+      color: #2471a3;
+      text-decoration: none;
+    }
+    .moths-table td.date-cell a:hover { text-decoration: underline; }
     .moths-table td.status-cell {
       text-align: center;
       padding-left: 4px;
@@ -346,6 +351,11 @@ async function startFetch() {
   }
 }
 
+function sheetUrl(isoDate) {
+  const [y, m, d] = isoDate.split('-');
+  return `https://www.bramleygolfclub.co.uk/memberbooking/?date=${d}-${m}-${y}`;
+}
+
 function statusHtml(status) {
   if (status === 'tick')  return '<span class="status-tick">✓</span>';
   if (status === 'cross') return '<span class="status-cross">✗</span>';
@@ -366,9 +376,9 @@ function renderResults(data) {
     else if (isPast)   tr.className = 'past-week';
 
     tr.innerHTML = `
-      <td class="date-cell">${row.monDisplay}</td>
+      <td class="date-cell"><a href="${sheetUrl(row.monIso)}" target="_blank">${row.monDisplay}</a></td>
       <td class="status-cell">${statusHtml(row.monStatus)}</td>
-      <td class="date-cell">${row.thuDisplay}</td>
+      <td class="date-cell"><a href="${sheetUrl(row.thuIso)}" target="_blank">${row.thuDisplay}</a></td>
       <td class="status-cell">${statusHtml(row.thuStatus)}</td>
     `;
     tbody.appendChild(tr);
