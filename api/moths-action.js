@@ -90,7 +90,19 @@ async function fetchTeeSheet(client, cookieHeader, isoDate) {
       if (compNameEl.length) {
         const compTitle = compNameEl.text().replace(/\s+'/, "'").trim() || null;
         const { isEntered, actions } = parseRollUpActions($s, row);
-        sheet[time] = { title: compTitle, isEntered, actions };
+        // Count signed-up players
+        const signedUpDiv = $s(row).find(".rollup-info .rollup-entrants-list").filter((_i, el) =>
+          /signed up/i.test($s(el).text())
+        );
+        let playerCount = null;
+        let playerNames = null;
+        if (signedUpDiv.length) {
+          const names = signedUpDiv.find("i").first().text()
+            .split(",").map(n => n.trim()).filter(Boolean);
+          playerCount = names.length;
+          playerNames = names;
+        }
+        sheet[time] = { title: compTitle, isEntered, actions, playerCount, playerNames };
       }
     });
     return sheet;
@@ -228,7 +240,21 @@ async function executeOneAction(memberId, pin, date, actionType) {
         }
       );
     }
-    return { date, action: actionType, success: true, message: `Successfully ${actionType === "enter" ? "entered" : "withdrew from"} Moths roll-up on ${date}` };
+    // Re-fetch the sheet to get the updated player count/names
+    let playerCount = null;
+    let playerNames = null;
+    try {
+      const freshSheet = await fetchTeeSheet(client, cookieHeader, date);
+      const freshTime = findMothsSlot(freshSheet);
+      if (freshSheet && freshTime) {
+        playerCount = freshSheet[freshTime].playerCount ?? null;
+        playerNames = freshSheet[freshTime].playerNames ?? null;
+      }
+    } catch { /* non-critical */ }
+
+    return { date, action: actionType, success: true,
+      message: `Successfully ${actionType === "enter" ? "entered" : "withdrew from"} Moths roll-up on ${date}`,
+      playerCount, playerNames };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return { date, action: actionType, success: false, message: `Request failed: ${msg}` };

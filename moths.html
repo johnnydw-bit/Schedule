@@ -197,7 +197,6 @@
     .moths-table td.date-cell a:hover { text-decoration: underline; }
     .moths-table td.status-cell {
       font-size: 14px;
-      font-weight: 700;
     }
     .moths-table td.count-cell {
       font-size: 12px;
@@ -214,7 +213,7 @@
 
     .status-tick  { color: #1e8449; }
     .status-cross { color: #c0392b; }
-    .status-time  { color: #b7770d; }
+    .status-time  { color: #c0392b; font-weight: 700; }
     .status-error { color: #aaa; }
 
     .today-row td { background: #f0f7ff; }
@@ -656,11 +655,11 @@ function buildRowHtml(row) {
   return `
     <td class="date-cell"><a href="#" onclick="event.preventDefault();openSheet('${row.monIso}')">${row.monDisplay}</a></td>
     <td class="status-cell">${statusHtml(row.monStatus)}</td>
-    <td class="count-cell">${monCountHtml}</td>
+    <td class="count-cell" data-count-iso="${row.monIso}">${monCountHtml}</td>
     <td class="entry-cell">${monCbHtml}</td>
     <td class="date-cell thu-date-cell"><a href="#" onclick="event.preventDefault();openSheet('${row.thuIso}')">${row.thuDisplay}</a></td>
     <td class="status-cell">${statusHtml(row.thuStatus)}</td>
-    <td class="count-cell">${thuCountHtml}</td>
+    <td class="count-cell" data-count-iso="${row.thuIso}">${thuCountHtml}</td>
     <td class="entry-cell">${thuCbHtml}</td>
   `;
 }
@@ -749,6 +748,16 @@ async function applyChanges() {
           cb.title = currentEntryState[result.date]
             ? 'Entered — uncheck to withdraw'
             : 'Not entered — check to enter';
+        }
+        // Update count cell and player names from fresh scrape
+        if (result.playerCount !== undefined && result.playerCount !== null) {
+          playerNamesMap[result.date] = result.playerNames || [];
+          const countCell = document.querySelector(`td[data-count-iso="${result.date}"]`);
+          if (countCell) {
+            countCell.innerHTML = `<span class="count-link" onclick="showPlayers('${result.date}')" title="Click to see players">${result.playerCount}</span>`;
+          }
+          // Refresh open panel if it's showing this date
+          if (activePpDate === result.date) showPlayers(result.date);
         }
       } else {
         // Revert desired state on failure
