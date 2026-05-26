@@ -41,7 +41,11 @@ function parseRollUpActions($s, row) {
     const rawAction = $form.attr("action") || "";
     const url = rawAction.startsWith("http")
       ? rawAction
-      : `${BASE_URL}${rawAction.startsWith("/") ? "" : "/"}${rawAction}`;
+      : rawAction.startsWith("/")
+        ? `${BASE_URL}${rawAction}`
+        : rawAction.startsWith("?")
+          ? `${BASE_URL}/memberbooking/${rawAction}`
+          : `${BASE_URL}/${rawAction}`;
 
     const fields = {};
     $form.find("input").each((_j, inp) => {

@@ -46,7 +46,11 @@ function parseRollUpActions($s, row) {
     const rawAction = $form.attr("action") || "";
     const url = rawAction.startsWith("http")
       ? rawAction
-      : `${BASE_URL}${rawAction.startsWith("/") ? "" : "/"}${rawAction}`;
+      : rawAction.startsWith("/")
+        ? `${BASE_URL}${rawAction}`
+        : rawAction.startsWith("?")
+          ? `${BASE_URL}/memberbooking/${rawAction}`
+          : `${BASE_URL}/${rawAction}`;
 
     // Collect all hidden fields + any non-submit named inputs
     const fields = {};
