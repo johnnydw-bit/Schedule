@@ -225,8 +225,8 @@ async function scrapeMothsRollUps(memberId, pin) {
 
   const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-  // Fetch in batches of 3 with 300ms gaps
-  const BATCH = 3;
+  // Fetch in batches of 5 with 300ms gaps
+  const BATCH = 5;
   const entries = [];
   for (let i = 0; i < fetchDates.length; i += BATCH) {
     const batch = fetchDates.slice(i, i + BATCH);

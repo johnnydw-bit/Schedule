@@ -790,6 +790,8 @@ async function startFetch() {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({member_id: memberId, pin}),
     });
+    if (!resp.ok && resp.headers.get('content-type')?.includes('application/json') === false)
+      throw new Error('Request timed out — please try again.');
     const data = await resp.json();
     if (data.status === 'error') throw new Error(data.message);
     savedCredentials = { memberId, pin };
@@ -898,6 +900,8 @@ async function refresh() {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ member_id: savedCredentials.memberId, pin: savedCredentials.pin }),
     });
+    if (!resp.ok && resp.headers.get('content-type')?.includes('application/json') === false)
+      throw new Error('Request timed out — please try again.');
     const data = await resp.json();
     if (data.status === 'error') throw new Error(data.message);
     renderResults(data);
