@@ -34,7 +34,7 @@ function parseRollUpActions($s, row) {
     const action = { method: "get", url: fullUrl, fields: {} };
     if (/withdraw|remove/i.test(text)) {
       withdrawAction = withdrawAction || action;
-    } else if (/sign[\s-]?up|join|enter|book|add/i.test(text)) {
+    } else if (/sign.{0,3}up|join|enter|book|add/i.test(text)) {
       enterAction = enterAction || action;
     }
   });
@@ -64,7 +64,7 @@ function parseRollUpActions($s, row) {
     const formAction = { method, url, fields };
     if (/withdraw|remove/i.test(submitText)) {
       withdrawAction = withdrawAction || formAction;
-    } else if (/sign[\s-]?up|join|enter/i.test(submitText)) {
+    } else if (/sign.{0,3}up|join|enter|book|add/i.test(submitText)) {
       enterAction = enterAction || formAction;
     }
   });
