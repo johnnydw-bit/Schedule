@@ -6,26 +6,20 @@ const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
 const REQUEST_TIMEOUT = 8000;
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "http://localhost:3000";
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
 function isoToSheetDate(iso) {
   const [y, m, d] = iso.split("-");
   return `${d}-${m}-${y}`;
 }
 
-function toDisplayDate(iso) {
-  const d = new Date(iso + "T12:00:00Z");
-  const days   = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  return `${days[d.getUTCDay()]} ${d.getUTCDate()} ${months[d.getUTCMonth()]}`;
-}
-
-// Parse action details (enter or withdraw) from a row element.
-// Returns { enter: {method,url,fields} | null, withdraw: {method,url,fields} | null, isEntered: bool | null }
+// Parse enter/withdraw action details from a roll-up row element.
 function parseRollUpActions($s, row) {
   const $row = $s(row);
   let enterAction = null;
   let withdrawAction = null;
 
-  // --- Check <a> links ---
+  // Check <a> links
   $row.find("a[href]").each((_i, el) => {
     const text = $s(el).text().trim();
     const href = $s(el).attr("href") || "";
@@ -39,7 +33,7 @@ function parseRollUpActions($s, row) {
     }
   });
 
-  // --- Check <form> elements ---
+  // Check <form> elements
   $row.find("form").each((_i, formEl) => {
     const $form = $s(formEl);
     const method = ($form.attr("method") || "get").toLowerCase();
@@ -48,7 +42,6 @@ function parseRollUpActions($s, row) {
       ? rawAction
       : `${BASE_URL}${rawAction.startsWith("/") ? "" : "/"}${rawAction}`;
 
-    // Collect all hidden fields + any non-submit named inputs
     const fields = {};
     $form.find("input").each((_j, inp) => {
       const type = ($s(inp).attr("type") || "text").toLowerCase();
@@ -57,9 +50,10 @@ function parseRollUpActions($s, row) {
       if (name && type !== "submit") fields[name] = value;
     });
 
-    // Identify intent from submit button text
-    const submitText = $form.find('input[type="submit"],button[type="submit"],button:not([type])').text().trim() ||
-      $form.find('input[type="submit"]').attr("value") || "";
+    const submitText =
+      $form.find('input[type="submit"]').attr("value") ||
+      $form.find('button[type="submit"],button:not([type])').text().trim() ||
+      "";
 
     const formAction = { method, url, fields };
     if (/withdraw|remove/i.test(submitText)) {
@@ -69,7 +63,6 @@ function parseRollUpActions($s, row) {
     }
   });
 
-  // Determine isEntered
   let isEntered = null;
   if (withdrawAction !== null) isEntered = true;
   else if (enterAction !== null) isEntered = false;
@@ -77,7 +70,7 @@ function parseRollUpActions($s, row) {
   return { isEntered, actions: { enter: enterAction, withdraw: withdrawAction } };
 }
 
-// Returns map of "HH:MM" -> { title, isEntered, actions } for roll-up slots only
+// Fetch tee sheet and return map of "HH:MM" -> { title, isEntered, actions }
 async function fetchTeeSheet(client, cookieHeader, isoDate) {
   try {
     const resp = await client.get(`/memberbooking/?date=${isoToSheetDate(isoDate)}`, {
@@ -103,10 +96,8 @@ async function fetchTeeSheet(client, cookieHeader, isoDate) {
   }
 }
 
-// Returns the booked time of the Moths roll-up on this sheet.
-// Matches "MOTH's Rollup", "Moths Roll Up", "MOTHS" etc.
-// Returns undefined if the fetch failed, null if no Moths slot found.
-function findMothsTime(sheet) {
+// Find the Moths roll-up slot in a sheet. Returns time string or null/undefined.
+function findMothsSlot(sheet) {
   if (!sheet) return undefined;
   for (const [time, data] of Object.entries(sheet)) {
     if (data.title && /moth/i.test(data.title)) return time;
@@ -114,37 +105,9 @@ function findMothsTime(sheet) {
   return null;
 }
 
-// "tick" | "cross" | "HH:MM" (moved time) | "error"
-function slotStatus(sheet, mothsTime) {
-  if (mothsTime === undefined) return "error";
-  if (mothsTime === null)      return "cross";
-  if (mothsTime === "10:00")   return "tick";
-  return mothsTime;
-}
+// ── Login sequence ────────────────────────────────────────────────────────────
 
-// Generate Mon+Thu pairs from Monday-of-current-week for ~2 months
-function buildWeeks(todayIso) {
-  const from = new Date(todayIso + "T12:00:00Z");
-  const day = from.getUTCDay();
-  const daysToMon = day === 0 ? -6 : 1 - day;
-  from.setUTCDate(from.getUTCDate() + daysToMon);
-
-  const to = new Date(todayIso + "T12:00:00Z");
-  to.setUTCMonth(to.getUTCMonth() + 2);
-
-  const weeks = [];
-  while (from <= to) {
-    const mon = from.toISOString().split("T")[0];
-    const thuDate = new Date(from);
-    thuDate.setUTCDate(thuDate.getUTCDate() + 3);
-    const thu = thuDate.toISOString().split("T")[0];
-    weeks.push({ mon, thu });
-    from.setUTCDate(from.getUTCDate() + 7);
-  }
-  return weeks;
-}
-
-async function scrapeMothsRollUps(memberId, pin) {
+async function login(memberId, pin) {
   const cookieJar = {};
   function setCookies(header) {
     if (!header) return;
@@ -200,59 +163,76 @@ async function scrapeMothsRollUps(memberId, pin) {
   if (typeof hr.data === "string" && (hr.data.includes('action="/login.php"') || hr.data.includes("Please log in")))
     throw new Error("INVALID_CREDENTIALS");
 
-  const cookieSnapshot = getCookieHeader();
-  const todayIso = new Date().toISOString().split("T")[0];
-  const weeks = buildWeeks(todayIso);
-  const allDates = weeks.flatMap(w => [w.mon, w.thu]);
-
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-  // Fetch in batches of 3 with 300ms gaps
-  const BATCH = 3;
-  const entries = [];
-  for (let i = 0; i < allDates.length; i += BATCH) {
-    const batch = allDates.slice(i, i + BATCH);
-    const batchResults = await Promise.all(
-      batch.map(async d => {
-        let sheet = await fetchTeeSheet(client, cookieSnapshot, d);
-        if (sheet === null) {
-          await sleep(600);
-          sheet = await fetchTeeSheet(client, cookieSnapshot, d);
-        }
-        return [d, sheet];
-      })
-    );
-    entries.push(...batchResults);
-    if (i + BATCH < allDates.length) await sleep(300);
-  }
-  const sheetMap = Object.fromEntries(entries);
-
-  const rows = weeks.map(({ mon, thu }) => {
-    const monSheet = sheetMap[mon];
-    const thuSheet = sheetMap[thu];
-    const monMothsTime = findMothsTime(monSheet);
-    const thuMothsTime = findMothsTime(thuSheet);
-
-    // Extract isEntered from the moths slot (null if no moths slot or sheet failed)
-    const monMothsSlot = monSheet && monMothsTime ? monSheet[monMothsTime] : null;
-    const thuMothsSlot = thuSheet && thuMothsTime ? thuSheet[thuMothsTime] : null;
-    const monEntered = monMothsSlot ? monMothsSlot.isEntered : null;
-    const thuEntered = thuMothsSlot ? thuMothsSlot.isEntered : null;
-
-    return {
-      monIso: mon,
-      monDisplay: toDisplayDate(mon),
-      monStatus: slotStatus(monSheet, monMothsTime),
-      monEntered,
-      thuIso: thu,
-      thuDisplay: toDisplayDate(thu),
-      thuStatus: slotStatus(thuSheet, thuMothsTime),
-      thuEntered,
-    };
-  });
-
-  return { rows, fetchedAt: new Date().toISOString() };
+  return { client, getCookieHeader };
 }
+
+// ── Execute a single action ───────────────────────────────────────────────────
+
+async function executeOneAction(memberId, pin, date, actionType) {
+  // 1. Login
+  const { client, getCookieHeader } = await login(memberId, pin);
+  const cookieHeader = getCookieHeader();
+
+  // 2. Fetch tee sheet
+  let sheet = await fetchTeeSheet(client, cookieHeader, date);
+  if (sheet === null) {
+    await new Promise(r => setTimeout(r, 600));
+    sheet = await fetchTeeSheet(client, cookieHeader, date);
+  }
+  if (sheet === null) {
+    return { date, action: actionType, success: false, message: "Could not fetch tee sheet" };
+  }
+
+  // 3. Find Moths slot
+  const mothsTime = findMothsSlot(sheet);
+  if (mothsTime === undefined || mothsTime === null) {
+    return { date, action: actionType, success: false, message: "No Moths roll-up slot found for this date" };
+  }
+
+  const slot = sheet[mothsTime];
+
+  // 4. Get action details
+  const actionDetails = slot.actions[actionType];
+  if (!actionDetails) {
+    // Determine a sensible message
+    if (actionType === "enter" && slot.isEntered === true) {
+      return { date, action: actionType, success: false, message: "Already entered — withdraw first if you want to re-enter" };
+    }
+    if (actionType === "withdraw" && slot.isEntered === false) {
+      return { date, action: actionType, success: false, message: "Not entered — nothing to withdraw" };
+    }
+    return { date, action: actionType, success: false, message: `No ${actionType} action available for this slot` };
+  }
+
+  // 5. Execute
+  try {
+    if (actionDetails.method === "get") {
+      await client.get(actionDetails.url, {
+        headers: { Cookie: cookieHeader, Referer: `${BASE_URL}/memberbooking/?date=${isoToSheetDate(date)}` },
+        timeout: REQUEST_TIMEOUT,
+      });
+    } else {
+      // POST with form-encoded fields
+      await client.post(actionDetails.url,
+        new URLSearchParams(actionDetails.fields).toString(),
+        {
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            Cookie: cookieHeader,
+            Referer: `${BASE_URL}/memberbooking/?date=${isoToSheetDate(date)}`,
+          },
+          timeout: REQUEST_TIMEOUT,
+        }
+      );
+    }
+    return { date, action: actionType, success: true, message: `Successfully ${actionType === "enter" ? "entered" : "withdrew from"} Moths roll-up on ${date}` };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { date, action: actionType, success: false, message: `Request failed: ${msg}` };
+  }
+}
+
+// ── Vercel handler ────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
   const origin = req.headers.origin || "";
@@ -266,16 +246,45 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "POST required" });
 
-  const { member_id, pin } = req.body || {};
+  const { member_id, pin, actions } = req.body || {};
   if (!member_id || !pin) return res.status(400).json({ error: "member_id and pin required" });
+  if (!Array.isArray(actions) || actions.length === 0)
+    return res.status(400).json({ error: "actions array required" });
+
+  // Validate each action item
+  for (const item of actions) {
+    if (!item.date || !/^\d{4}-\d{2}-\d{2}$/.test(item.date))
+      return res.status(400).json({ error: `Invalid date: ${item.date}` });
+    if (item.action !== "enter" && item.action !== "withdraw")
+      return res.status(400).json({ error: `action must be "enter" or "withdraw", got: ${item.action}` });
+  }
+
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const BATCH = 3;
+  const results = [];
 
   try {
-    const result = await scrapeMothsRollUps(member_id.trim(), pin.trim());
-    return res.status(200).json({ status: "done", ...result });
+    for (let i = 0; i < actions.length; i += BATCH) {
+      const batch = actions.slice(i, i + BATCH);
+      const batchResults = await Promise.all(
+        batch.map(({ date, action }) =>
+          executeOneAction(member_id.trim(), pin.trim(), date, action)
+            .catch(err => {
+              const message = err instanceof Error ? err.message : String(err);
+              if (message === "INVALID_CREDENTIALS")
+                return { date, action, success: false, message: "Invalid credentials" };
+              return { date, action, success: false, message: `Unexpected error: ${message}` };
+            })
+        )
+      );
+      results.push(...batchResults);
+      if (i + BATCH < actions.length) await sleep(300);
+    }
+    return res.status(200).json({ status: "done", results });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (message === "INVALID_CREDENTIALS")
       return res.status(401).json({ status: "error", message: "Invalid credentials — check your Member ID and PIN." });
-    return res.status(502).json({ status: "error", message: "Failed to fetch data. Please try again." });
+    return res.status(502).json({ status: "error", message: "Failed to process actions. Please try again." });
   }
 }

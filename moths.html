@@ -18,7 +18,7 @@
       background: #fff;
       border-radius: 14px;
       overflow: hidden;
-      max-width: 480px;
+      max-width: 540px;
       margin: 0 auto;
       box-shadow: 0 2px 12px rgba(0,0,0,0.1);
     }
@@ -156,18 +156,34 @@
     .moths-table thead th.day-head {
       color: #1a3a5c;
       border-bottom: 2px solid #1a3a5c;
-      width: 50%;
     }
     .moths-table thead th.status-head {
       width: 1px;
       white-space: nowrap;
       padding-left: 6px;
-      padding-right: 14px;
+      padding-right: 6px;
+    }
+    .moths-table thead th.entry-head {
+      width: 36px;
+      text-align: center;
+      padding-left: 2px;
+      padding-right: 10px;
+      color: #1a3a5c;
+      font-size: 13px;
     }
 
     .moths-table tbody tr { border-bottom: 1px solid #f5f5f5; }
     .moths-table tbody tr:last-child { border-bottom: none; }
     .moths-table tbody tr.past-week { opacity: 0.5; }
+
+    /* Pending-change row: amber left border */
+    .moths-table tbody tr.pending-change {
+      background: #fffbf0;
+    }
+    .moths-table tbody tr.pending-change td:first-child {
+      border-left: 3px solid #e8a020;
+      padding-left: 13px;
+    }
 
     .moths-table td {
       padding: 7px 6px 7px 16px;
@@ -186,14 +202,20 @@
     .moths-table td.status-cell {
       text-align: center;
       padding-left: 4px;
-      padding-right: 14px;
+      padding-right: 6px;
       font-size: 14px;
       font-weight: 700;
       white-space: nowrap;
     }
+    .moths-table td.entry-cell {
+      text-align: center;
+      padding-left: 2px;
+      padding-right: 10px;
+      width: 36px;
+    }
 
     /* divider between Mon and Thu pairs */
-    .moths-table td.date-cell:nth-child(3) {
+    .moths-table td.thu-date-cell {
       border-left: 1px solid #ececec;
     }
 
@@ -203,6 +225,58 @@
     .status-error { color: #aaa;    font-size: 11px; }
 
     .today-row td { background: #f0f7ff; }
+    .today-row.pending-change td { background: #fffbf0; }
+
+    /* ── Entry checkbox ── */
+    .entry-cb {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 18px;
+      height: 18px;
+      border: 2px solid #b0b8c4;
+      border-radius: 4px;
+      background: #fff;
+      cursor: pointer;
+      position: relative;
+      transition: border-color 0.15s, background 0.15s;
+      vertical-align: middle;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+    .entry-cb:checked {
+      background: #1a3a5c;
+      border-color: #1a3a5c;
+    }
+    .entry-cb:checked::after {
+      content: '';
+      position: absolute;
+      left: 3px;
+      top: 0px;
+      width: 6px;
+      height: 10px;
+      border: 2px solid #fff;
+      border-top: none;
+      border-left: none;
+      transform: rotate(45deg);
+    }
+    .entry-cb:disabled {
+      opacity: 0.25;
+      cursor: default;
+    }
+    .entry-cb:not(:disabled):hover {
+      border-color: #1a3a5c;
+    }
+
+    /* Row feedback states */
+    .moths-table tbody tr.action-success td { background: #edfaf1 !important; }
+    .moths-table tbody tr.action-error td   { background: #fef0ef !important; }
+
+    /* Row-level feedback icon next to checkbox */
+    .entry-feedback {
+      font-size: 13px;
+      margin-left: 2px;
+      vertical-align: middle;
+    }
 
     /* ── Legend ── */
     .legend {
@@ -222,14 +296,52 @@
       padding: 14px 20px 18px;
       display: flex;
       justify-content: center;
+      align-items: center;
       gap: 20px;
       border-top: 1px solid #f0f0f0;
+      flex-wrap: wrap;
     }
     .reset-btn {
       color: #888;
       font-size: 13px;
       cursor: pointer;
       text-decoration: underline;
+      background: none;
+      border: none;
+      font-family: inherit;
+      padding: 0;
+    }
+    .reset-btn:hover { color: #555; }
+
+    .apply-btn {
+      padding: 8px 16px;
+      background: #e8a020;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .apply-btn:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+    .apply-btn:not(:disabled):hover { opacity: 0.88; }
+
+    /* Inline spinner for apply button */
+    .apply-btn .btn-spinner {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 5px;
     }
   </style>
 </head>
@@ -284,8 +396,31 @@
     <table class="moths-table">
       <thead>
         <tr>
-          <th class="day-head" colspan="2">Monday</th>
-          <th class="day-head" colspan="2">Thursday</th>
+          <th class="day-head" colspan="3">Monday</th>
+          <th class="day-head" colspan="3">Thursday</th>
+        </tr>
+        <tr>
+          <th>Date</th>
+          <th class="status-head">Status</th>
+          <th class="entry-head" title="Roll-up entry">
+            <!-- person icon -->
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                 fill="none" stroke="currentColor" stroke-width="2.5"
+                 stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+          </th>
+          <th>Date</th>
+          <th class="status-head">Status</th>
+          <th class="entry-head" title="Roll-up entry">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                 fill="none" stroke="currentColor" stroke-width="2.5"
+                 stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+          </th>
         </tr>
       </thead>
       <tbody id="rows"></tbody>
@@ -296,21 +431,260 @@
       <span><span class="status-cross">✗</span> not booked</span>
     </div>
     <div class="footer-btns">
-      <span class="reset-btn" onclick="refresh()">↻ Refresh</span>
-      <span class="reset-btn" onclick="changeAccount()">Change account</span>
+      <button class="reset-btn" onclick="refresh()">↻ Refresh</button>
+      <button class="apply-btn" id="apply-btn" onclick="applyChanges()" disabled>
+        Apply Changes (0)
+      </button>
+      <button class="reset-btn" onclick="changeAccount()">Change account</button>
     </div>
   </div>
 </div>
 
 <script>
 let fetching = false;
+let applying = false;
 let savedCredentials = null;
+
+// {isoDate: bool|null}  — truth from last API response
+let currentEntryState = {};
+// {isoDate: bool}       — user's desired state (only dates where a roll-up exists)
+let desiredEntryState = {};
+
+// ── Utility ───────────────────────────────────────────────────────────────────
 
 function show(id) {
   ['login','loading','results'].forEach(s => {
     document.getElementById(s).style.display = s === id ? 'block' : 'none';
   });
 }
+
+function statusHtml(status) {
+  if (status === 'tick')  return '<span class="status-tick">✓</span>';
+  if (status === 'cross') return '<span class="status-cross">✗</span>';
+  if (status === 'error') return '<span class="status-error">?</span>';
+  return `<span class="status-time">${status}</span>`;
+}
+
+// Count pending changes (desired !== current, and current is not null)
+function countPending() {
+  let n = 0;
+  for (const [date, desired] of Object.entries(desiredEntryState)) {
+    const current = currentEntryState[date];
+    if (current !== null && current !== undefined && desired !== current) n++;
+  }
+  return n;
+}
+
+function updateApplyButton() {
+  const n = countPending();
+  const btn = document.getElementById('apply-btn');
+  btn.disabled = n === 0 || applying;
+  btn.innerHTML = applying
+    ? `<span class="btn-spinner"></span>Applying…`
+    : `Apply Changes (${n})`;
+}
+
+// Recompute pending-change row highlight and checkbox states without full re-render
+function refreshRowStates() {
+  document.querySelectorAll('tr[data-mon-iso]').forEach(tr => {
+    const monIso = tr.dataset.monIso;
+    const thuIso = tr.dataset.thuIso;
+    const monPending = currentEntryState[monIso] !== null &&
+      currentEntryState[monIso] !== undefined &&
+      desiredEntryState[monIso] !== undefined &&
+      desiredEntryState[monIso] !== currentEntryState[monIso];
+    const thuPending = currentEntryState[thuIso] !== null &&
+      currentEntryState[thuIso] !== undefined &&
+      desiredEntryState[thuIso] !== undefined &&
+      desiredEntryState[thuIso] !== currentEntryState[thuIso];
+    const wasPending = tr.classList.contains('pending-change');
+    const nowPending = monPending || thuPending;
+    if (nowPending !== wasPending) {
+      tr.classList.toggle('pending-change', nowPending);
+    }
+  });
+  updateApplyButton();
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+
+function renderResults(data) {
+  const today = new Date().toISOString().split('T')[0];
+  const tbody = document.getElementById('rows');
+  tbody.innerHTML = '';
+
+  // Rebuild state maps from fresh API data
+  currentEntryState = {};
+  desiredEntryState = {};
+
+  (data.rows || []).forEach(row => {
+    // Record current entry state from API
+    currentEntryState[row.monIso] = row.monEntered ?? null;
+    currentEntryState[row.thuIso] = row.thuEntered ?? null;
+    // Initialise desired to match current
+    if (row.monEntered !== null && row.monEntered !== undefined) {
+      desiredEntryState[row.monIso] = row.monEntered;
+    }
+    if (row.thuEntered !== null && row.thuEntered !== undefined) {
+      desiredEntryState[row.thuIso] = row.thuEntered;
+    }
+  });
+
+  (data.rows || []).forEach(row => {
+    const isCurrentWeek = row.monIso <= today && today <= row.thuIso;
+    const isPast = row.thuIso < today;
+    const tr = document.createElement('tr');
+    tr.dataset.monIso = row.monIso;
+    tr.dataset.thuIso = row.thuIso;
+
+    if (isCurrentWeek) tr.classList.add('today-row');
+    else if (isPast)   tr.classList.add('past-week');
+
+    tr.innerHTML = buildRowHtml(row);
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('as-of').textContent =
+    `Fetched ${new Date(data.fetchedAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}`;
+
+  show('results');
+  updateApplyButton();
+}
+
+function buildRowHtml(row) {
+  const monHasRollup = row.monStatus !== 'cross' && row.monStatus !== 'error';
+  const thuHasRollup = row.thuStatus !== 'cross' && row.thuStatus !== 'error';
+
+  const monCbHtml = buildCheckboxHtml(row.monIso, row.monEntered, monHasRollup, 'mon');
+  const thuCbHtml = buildCheckboxHtml(row.thuIso, row.thuEntered, thuHasRollup, 'thu');
+
+  return `
+    <td class="date-cell"><a href="#" onclick="event.preventDefault();openSheet('${row.monIso}')">${row.monDisplay}</a></td>
+    <td class="status-cell">${statusHtml(row.monStatus)}</td>
+    <td class="entry-cell">${monCbHtml}</td>
+    <td class="date-cell thu-date-cell"><a href="#" onclick="event.preventDefault();openSheet('${row.thuIso}')">${row.thuDisplay}</a></td>
+    <td class="status-cell">${statusHtml(row.thuStatus)}</td>
+    <td class="entry-cell">${thuCbHtml}</td>
+  `;
+}
+
+function buildCheckboxHtml(isoDate, isEntered, hasRollup, side) {
+  if (!hasRollup) {
+    // No roll-up exists — show a disabled unchecked checkbox
+    return `<input type="checkbox" class="entry-cb" disabled title="No roll-up on this date"/>`;
+  }
+  const checked  = isEntered === true  ? 'checked' : '';
+  const disabled = isEntered === null  ? 'disabled' : '';
+  const title    = isEntered === null  ? 'Entry state unknown' :
+                   isEntered           ? 'Entered — uncheck to withdraw' :
+                                        'Not entered — check to enter';
+  return `<input type="checkbox" class="entry-cb" ${checked} ${disabled}
+    data-iso="${isoDate}"
+    title="${title}"
+    onchange="onCheckboxChange('${isoDate}', this.checked)"/>`;
+}
+
+// ── Checkbox interaction ──────────────────────────────────────────────────────
+
+function onCheckboxChange(isoDate, checked) {
+  desiredEntryState[isoDate] = checked;
+  refreshRowStates();
+}
+
+// ── Apply changes ─────────────────────────────────────────────────────────────
+
+async function applyChanges() {
+  if (applying || !savedCredentials) return;
+  const pending = [];
+  for (const [date, desired] of Object.entries(desiredEntryState)) {
+    const current = currentEntryState[date];
+    if (current !== null && current !== undefined && desired !== current) {
+      pending.push({ date, action: desired ? 'enter' : 'withdraw' });
+    }
+  }
+  if (pending.length === 0) return;
+
+  applying = true;
+  updateApplyButton();
+
+  // Disable all checkboxes while applying
+  document.querySelectorAll('.entry-cb:not(:disabled)').forEach(cb => {
+    cb.dataset.wasEnabled = '1';
+    cb.disabled = true;
+  });
+
+  try {
+    const resp = await fetch('/api/moths-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        member_id: savedCredentials.memberId,
+        pin: savedCredentials.pin,
+        actions: pending,
+      }),
+    });
+    const data = await resp.json();
+    if (data.status === 'error') throw new Error(data.message);
+
+    // Process results
+    (data.results || []).forEach(result => {
+      const tr = document.querySelector(`tr[data-mon-iso="${result.date}"], tr[data-thu-iso="${result.date}"]`);
+      if (result.success) {
+        // Update current state to reflect the action taken
+        currentEntryState[result.date] = result.action === 'enter';
+        desiredEntryState[result.date] = currentEntryState[result.date];
+        if (tr) {
+          tr.classList.remove('action-error');
+          tr.classList.add('action-success');
+          setTimeout(() => tr.classList.remove('action-success'), 2500);
+        }
+        // Update the specific checkbox
+        const cb = document.querySelector(`.entry-cb[data-iso="${result.date}"]`);
+        if (cb) {
+          cb.checked = currentEntryState[result.date];
+          cb.title = currentEntryState[result.date]
+            ? 'Entered — uncheck to withdraw'
+            : 'Not entered — check to enter';
+        }
+      } else {
+        // Revert desired state on failure
+        desiredEntryState[result.date] = currentEntryState[result.date];
+        if (tr) {
+          tr.classList.remove('action-success');
+          tr.classList.add('action-error');
+          setTimeout(() => tr.classList.remove('action-error'), 3500);
+        }
+        // Revert checkbox visual
+        const cb = document.querySelector(`.entry-cb[data-iso="${result.date}"]`);
+        if (cb) cb.checked = !!currentEntryState[result.date];
+      }
+    });
+
+  } catch (e) {
+    // Revert all desired states on total failure
+    for (const { date } of pending) {
+      desiredEntryState[date] = currentEntryState[date];
+      const cb = document.querySelector(`.entry-cb[data-iso="${date}"]`);
+      if (cb) cb.checked = !!currentEntryState[date];
+    }
+    // Show a brief error in the footer area
+    const btn = document.getElementById('apply-btn');
+    const origText = btn.textContent;
+    btn.textContent = e.message || 'Apply failed — try again';
+    setTimeout(() => updateApplyButton(), 3000);
+  } finally {
+    applying = false;
+    // Re-enable checkboxes that were enabled before
+    document.querySelectorAll('.entry-cb[data-was-enabled]').forEach(cb => {
+      cb.disabled = false;
+      delete cb.dataset.wasEnabled;
+    });
+    refreshRowStates();
+    updateApplyButton();
+  }
+}
+
+// ── Fetch ─────────────────────────────────────────────────────────────────────
 
 async function startFetch() {
   if (fetching) return;
@@ -362,40 +736,6 @@ async function openSheet(isoDate) {
   window.open(dest, '_blank');
 }
 
-function statusHtml(status) {
-  if (status === 'tick')  return '<span class="status-tick">✓</span>';
-  if (status === 'cross') return '<span class="status-cross">✗</span>';
-  if (status === 'error') return '<span class="status-error">?</span>';
-  return `<span class="status-time">${status}</span>`;
-}
-
-function renderResults(data) {
-  const today = new Date().toISOString().split('T')[0];
-  const tbody = document.getElementById('rows');
-  tbody.innerHTML = '';
-
-  (data.rows || []).forEach(row => {
-    const isCurrentWeek = row.monIso <= today && today <= row.thuIso;
-    const isPast = row.thuIso < today;
-    const tr = document.createElement('tr');
-    if (isCurrentWeek) tr.className = 'today-row';
-    else if (isPast)   tr.className = 'past-week';
-
-    tr.innerHTML = `
-      <td class="date-cell"><a href="#" onclick="event.preventDefault();openSheet('${row.monIso}')">${row.monDisplay}</a></td>
-      <td class="status-cell">${statusHtml(row.monStatus)}</td>
-      <td class="date-cell"><a href="#" onclick="event.preventDefault();openSheet('${row.thuIso}')">${row.thuDisplay}</a></td>
-      <td class="status-cell">${statusHtml(row.thuStatus)}</td>
-    `;
-    tbody.appendChild(tr);
-  });
-
-  document.getElementById('as-of').textContent =
-    `Fetched ${new Date(data.fetchedAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}`;
-
-  show('results');
-}
-
 async function refresh() {
   if (!savedCredentials) { changeAccount(); return; }
   if (fetching) return;
@@ -420,6 +760,8 @@ async function refresh() {
 
 function changeAccount() {
   savedCredentials = null;
+  currentEntryState = {};
+  desiredEntryState = {};
   document.getElementById('member_id').value = '';
   document.getElementById('pin').value = '';
   document.getElementById('err').style.display = 'none';
