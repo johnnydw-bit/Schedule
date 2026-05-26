@@ -103,12 +103,14 @@ async function fetchTeeSheet(client, cookieHeader, isoDate) {
           /signed up/i.test($s(el).text())
         );
         let playerCount = null;
+        let playerNames = null;
         if (signedUpDiv.length) {
           const names = signedUpDiv.find("i").first().text()
             .split(",").map(n => n.trim()).filter(Boolean);
           playerCount = names.length;
+          playerNames = names;
         }
-        sheet[time] = { title: compTitle, isEntered, actions, playerCount };
+        sheet[time] = { title: compTitle, isEntered, actions, playerCount, playerNames };
       }
     });
     return sheet;
@@ -253,6 +255,7 @@ async function scrapeMothsRollUps(memberId, pin) {
       status:      slotStatus(sheet, mothsTime),
       entered:     slot ? slot.isEntered   : null,
       playerCount: slot ? slot.playerCount : null,
+      playerNames: slot ? slot.playerNames : null,
     };
   }
 
@@ -261,9 +264,9 @@ async function scrapeMothsRollUps(memberId, pin) {
     const t = slotData(thu);
     return {
       monIso: mon, monDisplay: toDisplayDate(mon),
-      monStatus: m.status, monEntered: m.entered, monCount: m.playerCount,
+      monStatus: m.status, monEntered: m.entered, monCount: m.playerCount, monNames: m.playerNames,
       thuIso: thu, thuDisplay: toDisplayDate(thu),
-      thuStatus: t.status, thuEntered: t.entered, thuCount: t.playerCount,
+      thuStatus: t.status, thuEntered: t.entered, thuCount: t.playerCount, thuNames: t.playerNames,
     };
   });
 
