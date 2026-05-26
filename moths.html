@@ -140,6 +140,7 @@
     .moths-table {
       width: 100%;
       border-collapse: collapse;
+      table-layout: fixed;
     }
     .moths-table thead tr {
       background: #f7f8fa;
@@ -150,33 +151,18 @@
       text-transform: uppercase;
       letter-spacing: 0.05em;
       color: #888;
-      padding: 8px 0 8px 16px;
+      padding: 8px 4px;
+      text-align: center;
+      width: 12.5%;
     }
-    .moths-table thead th:last-child { padding-right: 16px; }
     .moths-table thead th.day-head {
       color: #1a3a5c;
       border-bottom: 2px solid #1a3a5c;
-    }
-    .moths-table thead th.status-head {
-      width: 1px;
-      white-space: nowrap;
-      padding-left: 6px;
-      padding-right: 4px;
-    }
-    .moths-table thead th.count-head {
-      width: 24px;
-      text-align: center;
-      padding-left: 2px;
-      padding-right: 4px;
-      font-size: 11px;
+      text-align: left;
+      padding-left: 10px;
     }
     .moths-table thead th.entry-head {
-      width: 32px;
-      text-align: center;
-      padding-left: 2px;
-      padding-right: 8px;
       color: #1a3a5c;
-      font-size: 13px;
     }
 
     .moths-table tbody tr { border-bottom: 1px solid #f5f5f5; }
@@ -193,13 +179,16 @@
     }
 
     .moths-table td {
-      padding: 7px 6px 7px 16px;
+      padding: 7px 4px;
       font-size: 13px;
+      text-align: center;
+      overflow: hidden;
     }
     .moths-table td.date-cell {
       color: #333;
       font-weight: 500;
-      white-space: nowrap;
+      text-align: left;
+      padding-left: 10px;
     }
     .moths-table td.date-cell a {
       color: #2471a3;
@@ -207,26 +196,15 @@
     }
     .moths-table td.date-cell a:hover { text-decoration: underline; }
     .moths-table td.status-cell {
-      text-align: center;
-      padding-left: 4px;
-      padding-right: 6px;
       font-size: 14px;
       font-weight: 700;
-      white-space: nowrap;
     }
     .moths-table td.count-cell {
-      text-align: center;
-      padding-left: 2px;
-      padding-right: 4px;
-      width: 24px;
       font-size: 12px;
       color: #666;
     }
     .moths-table td.entry-cell {
-      text-align: center;
-      padding-left: 2px;
-      padding-right: 8px;
-      width: 32px;
+      /* inherits text-align: center */
     }
 
     /* divider between Mon and Thu pairs */
@@ -416,27 +394,13 @@
         </tr>
         <tr>
           <th>Date</th>
-          <th class="status-head">Status</th>
-          <th class="count-head" title="Players entered">#</th>
-          <th class="entry-head" title="My entry">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
-                 fill="none" stroke="currentColor" stroke-width="2.5"
-                 stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-              <circle cx="12" cy="7" r="4"/>
-            </svg>
-          </th>
+          <th>Time</th>
+          <th title="Players entered">#</th>
+          <th class="entry-head" title="Tick to enter, untick to withdraw">In?</th>
           <th>Date</th>
-          <th class="status-head">Status</th>
-          <th class="count-head" title="Players entered">#</th>
-          <th class="entry-head" title="My entry">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
-                 fill="none" stroke="currentColor" stroke-width="2.5"
-                 stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-              <circle cx="12" cy="7" r="4"/>
-            </svg>
-          </th>
+          <th>Time</th>
+          <th title="Players entered">#</th>
+          <th class="entry-head" title="Tick to enter, untick to withdraw">In?</th>
         </tr>
       </thead>
       <tbody id="rows"></tbody>
