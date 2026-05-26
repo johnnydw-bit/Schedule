@@ -161,13 +161,20 @@
       width: 1px;
       white-space: nowrap;
       padding-left: 6px;
-      padding-right: 6px;
+      padding-right: 4px;
     }
-    .moths-table thead th.entry-head {
-      width: 36px;
+    .moths-table thead th.count-head {
+      width: 24px;
       text-align: center;
       padding-left: 2px;
-      padding-right: 10px;
+      padding-right: 4px;
+      font-size: 11px;
+    }
+    .moths-table thead th.entry-head {
+      width: 32px;
+      text-align: center;
+      padding-left: 2px;
+      padding-right: 8px;
       color: #1a3a5c;
       font-size: 13px;
     }
@@ -207,11 +214,19 @@
       font-weight: 700;
       white-space: nowrap;
     }
+    .moths-table td.count-cell {
+      text-align: center;
+      padding-left: 2px;
+      padding-right: 4px;
+      width: 24px;
+      font-size: 12px;
+      color: #666;
+    }
     .moths-table td.entry-cell {
       text-align: center;
       padding-left: 2px;
-      padding-right: 10px;
-      width: 36px;
+      padding-right: 8px;
+      width: 32px;
     }
 
     /* divider between Mon and Thu pairs */
@@ -396,15 +411,15 @@
     <table class="moths-table">
       <thead>
         <tr>
-          <th class="day-head" colspan="3">Monday</th>
-          <th class="day-head" colspan="3">Thursday</th>
+          <th class="day-head" colspan="4">Monday</th>
+          <th class="day-head" colspan="4">Thursday</th>
         </tr>
         <tr>
           <th>Date</th>
           <th class="status-head">Status</th>
-          <th class="entry-head" title="Roll-up entry">
-            <!-- person icon -->
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+          <th class="count-head" title="Players entered">#</th>
+          <th class="entry-head" title="My entry">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
                  fill="none" stroke="currentColor" stroke-width="2.5"
                  stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle">
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -413,8 +428,9 @@
           </th>
           <th>Date</th>
           <th class="status-head">Status</th>
-          <th class="entry-head" title="Roll-up entry">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+          <th class="count-head" title="Players entered">#</th>
+          <th class="entry-head" title="My entry">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
                  fill="none" stroke="currentColor" stroke-width="2.5"
                  stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle">
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -435,7 +451,6 @@
       <button class="apply-btn" id="apply-btn" onclick="applyChanges()" disabled>
         Apply Changes (0)
       </button>
-      <button class="reset-btn" onclick="changeAccount()">Change account</button>
     </div>
   </div>
 </div>
@@ -558,12 +573,17 @@ function buildRowHtml(row) {
   const monCbHtml = buildCheckboxHtml(row.monIso, row.monEntered, monHasRollup, 'mon');
   const thuCbHtml = buildCheckboxHtml(row.thuIso, row.thuEntered, thuHasRollup, 'thu');
 
+  const monCount = (monHasRollup && row.monCount !== null) ? row.monCount : '';
+  const thuCount = (thuHasRollup && row.thuCount !== null) ? row.thuCount : '';
+
   return `
     <td class="date-cell"><a href="#" onclick="event.preventDefault();openSheet('${row.monIso}')">${row.monDisplay}</a></td>
     <td class="status-cell">${statusHtml(row.monStatus)}</td>
+    <td class="count-cell">${monCount}</td>
     <td class="entry-cell">${monCbHtml}</td>
     <td class="date-cell thu-date-cell"><a href="#" onclick="event.preventDefault();openSheet('${row.thuIso}')">${row.thuDisplay}</a></td>
     <td class="status-cell">${statusHtml(row.thuStatus)}</td>
+    <td class="count-cell">${thuCount}</td>
     <td class="entry-cell">${thuCbHtml}</td>
   `;
 }
@@ -737,7 +757,7 @@ async function openSheet(isoDate) {
 }
 
 async function refresh() {
-  if (!savedCredentials) { changeAccount(); return; }
+  if (!savedCredentials) { show('login'); return; }
   if (fetching) return;
   fetching = true;
   show('loading');
@@ -758,15 +778,6 @@ async function refresh() {
   }
 }
 
-function changeAccount() {
-  savedCredentials = null;
-  currentEntryState = {};
-  desiredEntryState = {};
-  document.getElementById('member_id').value = '';
-  document.getElementById('pin').value = '';
-  document.getElementById('err').style.display = 'none';
-  show('login');
-}
 
 function togglePin() {
   const input = document.getElementById('pin');

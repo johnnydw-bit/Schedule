@@ -13,9 +13,8 @@ function isoToSheetDate(iso) {
 
 function toDisplayDate(iso) {
   const d = new Date(iso + "T12:00:00Z");
-  const days   = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
   const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  return `${days[d.getUTCDay()]} ${d.getUTCDate()} ${months[d.getUTCMonth()]}`;
+  return `${d.getUTCDate()} ${months[d.getUTCMonth()]}`;
 }
 
 // Parse action details (enter or withdraw) from a row element.
@@ -94,7 +93,17 @@ async function fetchTeeSheet(client, cookieHeader, isoDate) {
       if (compNameEl.length) {
         const compTitle = compNameEl.text().replace(/\s+'/, "'").trim() || null;
         const { isEntered, actions } = parseRollUpActions($s, row);
-        sheet[time] = { title: compTitle, isEntered, actions };
+        // Count signed-up players from the entrants list
+        const signedUpDiv = $s(row).find(".rollup-info .rollup-entrants-list").filter((_i, el) =>
+          /signed up/i.test($s(el).text())
+        );
+        let playerCount = null;
+        if (signedUpDiv.length) {
+          const names = signedUpDiv.find("i").first().text()
+            .split(",").map(n => n.trim()).filter(Boolean);
+          playerCount = names.length;
+        }
+        sheet[time] = { title: compTitle, isEntered, actions, playerCount };
       }
     });
     return sheet;
@@ -203,15 +212,20 @@ async function scrapeMothsRollUps(memberId, pin) {
   const cookieSnapshot = getCookieHeader();
   const todayIso = new Date().toISOString().split("T")[0];
   const weeks = buildWeeks(todayIso);
-  const allDates = weeks.flatMap(w => [w.mon, w.thu]);
+
+  // Only fetch tee sheets within the 2-week booking window
+  const cutoff = new Date(todayIso + "T12:00:00Z");
+  cutoff.setUTCDate(cutoff.getUTCDate() + 14);
+  const cutoffIso = cutoff.toISOString().split("T")[0];
+  const fetchDates = weeks.flatMap(w => [w.mon, w.thu]).filter(d => d <= cutoffIso);
 
   const sleep = ms => new Promise(r => setTimeout(r, ms));
 
   // Fetch in batches of 3 with 300ms gaps
   const BATCH = 3;
   const entries = [];
-  for (let i = 0; i < allDates.length; i += BATCH) {
-    const batch = allDates.slice(i, i + BATCH);
+  for (let i = 0; i < fetchDates.length; i += BATCH) {
+    const batch = fetchDates.slice(i, i + BATCH);
     const batchResults = await Promise.all(
       batch.map(async d => {
         let sheet = await fetchTeeSheet(client, cookieSnapshot, d);
@@ -223,31 +237,29 @@ async function scrapeMothsRollUps(memberId, pin) {
       })
     );
     entries.push(...batchResults);
-    if (i + BATCH < allDates.length) await sleep(300);
+    if (i + BATCH < fetchDates.length) await sleep(300);
   }
   const sheetMap = Object.fromEntries(entries);
 
-  const rows = weeks.map(({ mon, thu }) => {
-    const monSheet = sheetMap[mon];
-    const thuSheet = sheetMap[thu];
-    const monMothsTime = findMothsTime(monSheet);
-    const thuMothsTime = findMothsTime(thuSheet);
-
-    // Extract isEntered from the moths slot (null if no moths slot or sheet failed)
-    const monMothsSlot = monSheet && monMothsTime ? monSheet[monMothsTime] : null;
-    const thuMothsSlot = thuSheet && thuMothsTime ? thuSheet[thuMothsTime] : null;
-    const monEntered = monMothsSlot ? monMothsSlot.isEntered : null;
-    const thuEntered = thuMothsSlot ? thuMothsSlot.isEntered : null;
-
+  function slotData(iso) {
+    const sheet = sheetMap[iso] ?? null;    // null = beyond cutoff or fetch failed
+    const mothsTime = findMothsTime(sheet);
+    const slot = (sheet && mothsTime) ? sheet[mothsTime] : null;
     return {
-      monIso: mon,
-      monDisplay: toDisplayDate(mon),
-      monStatus: slotStatus(monSheet, monMothsTime),
-      monEntered,
-      thuIso: thu,
-      thuDisplay: toDisplayDate(thu),
-      thuStatus: slotStatus(thuSheet, thuMothsTime),
-      thuEntered,
+      status:      slotStatus(sheet, mothsTime),
+      entered:     slot ? slot.isEntered   : null,
+      playerCount: slot ? slot.playerCount : null,
+    };
+  }
+
+  const rows = weeks.map(({ mon, thu }) => {
+    const m = slotData(mon);
+    const t = slotData(thu);
+    return {
+      monIso: mon, monDisplay: toDisplayDate(mon),
+      monStatus: m.status, monEntered: m.entered, monCount: m.playerCount,
+      thuIso: thu, thuDisplay: toDisplayDate(thu),
+      thuStatus: t.status, thuEntered: t.entered, thuCount: t.playerCount,
     };
   });
 
