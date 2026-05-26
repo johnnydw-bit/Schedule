@@ -223,9 +223,9 @@
     .entry-cb {
       appearance: none;
       -webkit-appearance: none;
-      width: 18px;
-      height: 18px;
-      border: 2px solid #b0b8c4;
+      width: 20px;
+      height: 20px;
+      border: 1.5px solid #c0392b;
       border-radius: 4px;
       background: #fff;
       cursor: pointer;
@@ -235,28 +235,34 @@
       display: inline-block;
       flex-shrink: 0;
     }
+    /* ✕ when not entered */
+    .entry-cb::after {
+      content: '✕';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 11px;
+      font-weight: 700;
+      color: #c0392b;
+      line-height: 1;
+    }
+    /* ✓ when entered */
     .entry-cb:checked {
-      background: #1a3a5c;
-      border-color: #1a3a5c;
+      background: #1e8449;
+      border-color: #1e8449;
     }
     .entry-cb:checked::after {
-      content: '';
-      position: absolute;
-      left: 3px;
-      top: 0px;
-      width: 6px;
-      height: 10px;
-      border: 2px solid #fff;
-      border-top: none;
-      border-left: none;
-      transform: rotate(45deg);
+      content: '✓';
+      font-size: 13px;
+      color: #fff;
     }
     .entry-cb:disabled {
       opacity: 0.25;
       cursor: default;
     }
     .entry-cb:not(:disabled):hover {
-      border-color: #1a3a5c;
+      opacity: 0.75;
     }
 
     /* Row feedback states */
@@ -340,18 +346,6 @@
       border-top: 1px solid #f0f0f0;
       flex-wrap: wrap;
     }
-    .reset-btn {
-      color: #888;
-      font-size: 13px;
-      cursor: pointer;
-      text-decoration: underline;
-      background: none;
-      border: none;
-      font-family: inherit;
-      padding: 0;
-    }
-    .reset-btn:hover { color: #555; }
-
     .apply-btn {
       padding: 8px 16px;
       background: #e8a020;
@@ -442,11 +436,11 @@
           <th>Date</th>
           <th>Time</th>
           <th title="Players entered">#</th>
-          <th class="entry-head" title="Tick to enter, untick to withdraw">In?</th>
+          <th class="entry-head" title="Click to enter or withdraw">In/Out?</th>
           <th>Date</th>
           <th>Time</th>
           <th title="Players entered">#</th>
-          <th class="entry-head" title="Tick to enter, untick to withdraw">In?</th>
+          <th class="entry-head" title="Click to enter or withdraw">In/Out?</th>
         </tr>
       </thead>
       <tbody id="rows"></tbody>
@@ -467,7 +461,6 @@
       <span><span class="status-cross">✗</span> not booked</span>
     </div>
     <div class="footer-btns">
-      <button class="reset-btn" onclick="refresh()">↻ Refresh</button>
       <button class="apply-btn" id="apply-btn" onclick="applyChanges()" disabled>
         Apply Changes (0)
       </button>
@@ -499,9 +492,10 @@ function show(id) {
 }
 
 function statusHtml(status) {
-  if (status === 'cross') return '<span class="status-cross">✗</span>';
-  if (status === 'error') return '<span class="status-error">?</span>';
-  if (status === '10:00') return `<span class="status-tick">${status}</span>`;
+  if (status === 'cross')  return '<span class="status-cross">✗</span>';
+  if (status === 'error')  return '<span class="status-error">?</span>';
+  if (status === 'future') return '<span class="status-error">–</span>';
+  if (status === '10:00')  return `<span class="status-tick">${status}</span>`;
   return `<span class="status-time">${status}</span>`;
 }
 
@@ -635,8 +629,8 @@ function renderResults(data) {
 }
 
 function buildRowHtml(row) {
-  const monHasRollup = row.monStatus !== 'cross' && row.monStatus !== 'error';
-  const thuHasRollup = row.thuStatus !== 'cross' && row.thuStatus !== 'error';
+  const monHasRollup = row.monStatus !== 'cross' && row.monStatus !== 'error' && row.monStatus !== 'future';
+  const thuHasRollup = row.thuStatus !== 'cross' && row.thuStatus !== 'error' && row.thuStatus !== 'future';
 
   const monCbHtml = buildCheckboxHtml(row.monIso, row.monEntered, monHasRollup, 'mon');
   const thuCbHtml = buildCheckboxHtml(row.thuIso, row.thuEntered, thuHasRollup, 'thu');
@@ -672,8 +666,8 @@ function buildCheckboxHtml(isoDate, isEntered, hasRollup, side) {
   const checked  = isEntered === true  ? 'checked' : '';
   const disabled = isEntered === null  ? 'disabled' : '';
   const title    = isEntered === null  ? 'Entry state unknown' :
-                   isEntered           ? 'Entered — uncheck to withdraw' :
-                                        'Not entered — check to enter';
+                   isEntered           ? 'Entered — click to withdraw' :
+                                        'Not entered — click to enter';
   return `<input type="checkbox" class="entry-cb" ${checked} ${disabled}
     data-iso="${isoDate}"
     title="${title}"

@@ -248,7 +248,11 @@ async function scrapeMothsRollUps(memberId, pin) {
   const sheetMap = Object.fromEntries(entries);
 
   function slotData(iso) {
-    const sheet = sheetMap[iso] ?? null;    // null = beyond cutoff or fetch failed
+    if (!(iso in sheetMap)) {
+      // Beyond the fetch window — booking site won't have it open yet
+      return { status: "future", entered: null, playerCount: null, playerNames: null };
+    }
+    const sheet = sheetMap[iso];  // null if both fetch attempts failed
     const mothsTime = findMothsTime(sheet);
     const slot = (sheet && mothsTime) ? sheet[mothsTime] : null;
     return {
