@@ -68,21 +68,29 @@ export async function fetchHandicapMap() {
       return new Map();
     }
 
-    const token   = await getAccessToken(creds);
-    const csvUrl  = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv&gid=${SHEET_GID}`;
-    const resp    = await axios.get(csvUrl, {
-      headers:      { Authorization: `Bearer ${token}` },
-      timeout:      8000,
-      responseType: "text",
-    });
+    const token = await getAccessToken(creds);
+
+    // Step 1: find the sheet name for our gid
+    const metaResp = await axios.get(
+      `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}?fields=sheets.properties`,
+      { headers: { Authorization: `Bearer ${token}` }, timeout: 8000 }
+    );
+    const sheetMeta = metaResp.data.sheets || [];
+    const sheetName = sheetMeta.find(s => String(s.properties.sheetId) === SHEET_GID)
+      ?.properties.title;
+    if (!sheetName) throw new Error(`Sheet with gid ${SHEET_GID} not found`);
+
+    // Step 2: fetch columns A and G
+    const range = encodeURIComponent(`${sheetName}!A:G`);
+    const valResp = await axios.get(
+      `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}`,
+      { headers: { Authorization: `Bearer ${token}` }, timeout: 8000 }
+    );
 
     const map = new Map();
-    for (const line of resp.data.split(/\r?\n/)) {
-      const cols    = parseCSVLine(line);
-      if (cols.length < 7) continue;
-      const surname  = cols[0].trim();
-      const handicap = cols[6].trim();
-      // Accept numbers like 18, 18.2, +2.1, -1 but skip headers/empty cells
+    for (const row of valResp.data.values || []) {
+      const surname  = (row[0] || "").trim();
+      const handicap = (row[6] || "").trim();
       if (surname && handicap && /^[+\-]?\d/.test(handicap)) {
         map.set(surname.toLowerCase(), handicap);
       }

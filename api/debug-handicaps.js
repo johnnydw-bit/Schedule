@@ -48,14 +48,32 @@ export default async function handler(req, res) {
       return res.status(200).json({ steps });
     }
 
-    // Step 5: fetch CSV
+    // Step 5: get sheet metadata to find sheet name from gid
+    let sheetName;
     try {
-      const csvUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv&gid=${SHEET_GID}`;
-      const cr = await axios.get(csvUrl, { headers: { Authorization: `Bearer ${token}` }, timeout: 8000, responseType: "text" });
-      const lines = cr.data.split(/\r?\n/).slice(0, 5);
-      steps.push({ step: "csv_fetch", ok: true, status: cr.status, first_5_lines: lines });
+      const mr = await axios.get(
+        `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}?fields=sheets.properties`,
+        { headers: { Authorization: `Bearer ${token}` }, timeout: 8000 }
+      );
+      const sheets = mr.data.sheets || [];
+      sheetName = sheets.find(s => String(s.properties.sheetId) === SHEET_GID)?.properties.title;
+      steps.push({ step: "sheet_meta", ok: true, sheetName, allSheets: sheets.map(s => ({ id: s.properties.sheetId, title: s.properties.title })) });
     } catch (e) {
-      steps.push({ step: "csv_fetch", ok: false, status: e.response?.status, body: e.response?.data?.slice?.(0, 200) });
+      steps.push({ step: "sheet_meta", ok: false, status: e.response?.status, body: e.response?.data });
+      return res.status(200).json({ steps });
+    }
+
+    // Step 6: fetch values via Sheets API
+    try {
+      const range = encodeURIComponent(`${sheetName}!A:G`);
+      const vr = await axios.get(
+        `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}`,
+        { headers: { Authorization: `Bearer ${token}` }, timeout: 8000 }
+      );
+      const rows = (vr.data.values || []).slice(0, 5);
+      steps.push({ step: "values_fetch", ok: true, first_5_rows: rows });
+    } catch (e) {
+      steps.push({ step: "values_fetch", ok: false, status: e.response?.status, body: e.response?.data });
     }
 
     return res.status(200).json({ steps });
