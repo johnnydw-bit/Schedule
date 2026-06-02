@@ -1,14 +1,54 @@
 import axios from "axios";
+import crypto from "crypto";
 
-const SHEET_CSV_URL =
-  "https://docs.google.com/spreadsheets/d/1sZyBu8ksrYQxN8zIbkdh9QIGwm5dnbTR/export?format=csv&gid=276854640";
+const SPREADSHEET_ID = "1sZyBu8ksrYQxN8zIbkdh9QIGwm5dnbTR";
+const SHEET_GID      = "276854640";
+
+// ── Service-account JWT helpers ──────────────────────────────────────────────
+
+function getCredentials() {
+  const raw = process.env.GOOGLE_SERVICE_ACCOUNT;
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
+function createJWT(creds) {
+  const now    = Math.floor(Date.now() / 1000);
+  const header  = Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT" })).toString("base64url");
+  const payload = Buffer.from(JSON.stringify({
+    iss:   creds.client_email,
+    scope: "https://www.googleapis.com/auth/spreadsheets.readonly",
+    aud:   "https://oauth2.googleapis.com/token",
+    iat:   now,
+    exp:   now + 3600,
+  })).toString("base64url");
+
+  const signing  = `${header}.${payload}`;
+  const signer   = crypto.createSign("RSA-SHA256");
+  signer.update(signing);
+  const sig = signer.sign(creds.private_key, "base64url");
+  return `${signing}.${sig}`;
+}
+
+async function getAccessToken(creds) {
+  const resp = await axios.post(
+    "https://oauth2.googleapis.com/token",
+    new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion:  createJWT(creds),
+    }).toString(),
+    { headers: { "Content-Type": "application/x-www-form-urlencoded" }, timeout: 8000 }
+  );
+  return resp.data.access_token;
+}
+
+// ── CSV parsing ───────────────────────────────────────────────────────────────
 
 function parseCSVLine(line) {
   const cols = [];
   let cur = "";
   let inQuote = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
+  for (const ch of line) {
     if (ch === '"') { inQuote = !inQuote; continue; }
     if (ch === "," && !inQuote) { cols.push(cur); cur = ""; continue; }
     cur += ch;
@@ -17,27 +57,44 @@ function parseCSVLine(line) {
   return cols;
 }
 
+// ── Public API ────────────────────────────────────────────────────────────────
+
 // Returns Map<surname_lower -> handicap_string>
 export async function fetchHandicapMap() {
   try {
-    const resp = await axios.get(SHEET_CSV_URL, { timeout: 8000, responseType: "text" });
+    const creds = getCredentials();
+    if (!creds) {
+      console.warn("GOOGLE_SERVICE_ACCOUNT env var not set — handicaps unavailable");
+      return new Map();
+    }
+
+    const token   = await getAccessToken(creds);
+    const csvUrl  = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv&gid=${SHEET_GID}`;
+    const resp    = await axios.get(csvUrl, {
+      headers:      { Authorization: `Bearer ${token}` },
+      timeout:      8000,
+      responseType: "text",
+    });
+
     const map = new Map();
     for (const line of resp.data.split(/\r?\n/)) {
-      const cols = parseCSVLine(line);
+      const cols    = parseCSVLine(line);
       if (cols.length < 7) continue;
       const surname  = cols[0].trim();
       const handicap = cols[6].trim();
-      if (surname && handicap && /^-?\d/.test(handicap)) {
+      // Accept numbers like 18, 18.2, +2.1, -1 but skip headers/empty cells
+      if (surname && handicap && /^[+\-]?\d/.test(handicap)) {
         map.set(surname.toLowerCase(), handicap);
       }
     }
     return map;
-  } catch {
+  } catch (err) {
+    console.error("fetchHandicapMap error:", err.message);
     return new Map();
   }
 }
 
-// Best-effort match: first token of playerName against sheet surnames.
+// Best-effort surname match against the first token of a player name.
 // Returns handicap string or null.
 export function matchHandicap(playerName, handicapMap) {
   if (!handicapMap.size) return null;
@@ -47,21 +104,19 @@ export function matchHandicap(playerName, handicapMap) {
   // 1. Exact
   if (handicapMap.has(token)) return handicapMap.get(token);
 
-  // 2. Sheet surname starts-with token (e.g. token="Mac" matches "MacDonald")
-  //    or token starts-with surname (e.g. surname="Mac" matches token="MacDonald")
+  // 2. Best prefix match (longest shared prefix wins)
   let best = null;
   let bestLen = 0;
   for (const [surname, hcp] of handicapMap) {
     if (surname.startsWith(token) || token.startsWith(surname)) {
-      const matchLen = Math.min(surname.length, token.length);
-      if (matchLen > bestLen) { bestLen = matchLen; best = hcp; }
+      const len = Math.min(surname.length, token.length);
+      if (len > bestLen) { bestLen = len; best = hcp; }
     }
   }
   return best;
 }
 
-// Enrich a raw string[] of player names with handicaps.
-// Returns [{name, handicap}]
+// Enrich a raw string[] of player names → [{name, handicap}]
 export function enrichNames(rawNames, handicapMap) {
   if (!rawNames) return null;
   return rawNames.map(name => ({
