@@ -124,10 +124,16 @@ export function matchHandicap(playerName, handicapMap) {
   const parts = playerName.trim().split(/\s+/);
   if (!parts.length) return null;
 
+  // Build candidates: last token, last 2 tokens, last 3 tokens, hyphen parts
+  const candidates = [];
+  for (let n = 1; n <= Math.min(3, parts.length - 1); n++) {
+    candidates.push(parts.slice(parts.length - n).join(" ").toLowerCase());
+  }
+  // Also add hyphen parts of the last token
   const lastToken = parts[parts.length - 1].toLowerCase();
-  const candidates = [lastToken, ...lastToken.split("-").filter(p => p.length > 1)];
+  lastToken.split("-").filter(p => p.length > 1).forEach(p => candidates.push(p));
 
-  // 1. Exact match on any candidate
+  // 1. Exact match on any candidate (longest first so "De Wit" beats "Wit")
   for (const c of candidates) {
     if (handicapMap.has(c)) return handicapMap.get(c);
   }
