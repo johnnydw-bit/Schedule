@@ -1,5 +1,6 @@
 import axios from "axios";
 import crypto from "crypto";
+import * as XLSX from "xlsx";
 
 const SPREADSHEET_ID = "1sZyBu8ksrYQxN8zIbkdh9QIGwm5dnbTR";
 const SHEET_GID      = "276854640";
@@ -17,7 +18,7 @@ function createJWT(creds) {
   const header  = Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT" })).toString("base64url");
   const payload = Buffer.from(JSON.stringify({
     iss:   creds.client_email,
-    scope: "https://www.googleapis.com/auth/spreadsheets.readonly",
+    scope: "https://www.googleapis.com/auth/drive.readonly",
     aud:   "https://oauth2.googleapis.com/token",
     iat:   now,
     exp:   now + 3600,
@@ -70,27 +71,37 @@ export async function fetchHandicapMap() {
 
     const token = await getAccessToken(creds);
 
-    // Step 1: find the sheet name for our gid
-    const metaResp = await axios.get(
-      `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}?fields=sheets.properties`,
-      { headers: { Authorization: `Bearer ${token}` }, timeout: 8000 }
+    // Download the xlsx via Drive API
+    const driveResp = await axios.get(
+      `https://www.googleapis.com/drive/v3/files/${SPREADSHEET_ID}?alt=media`,
+      { headers: { Authorization: `Bearer ${token}` }, timeout: 10000, responseType: "arraybuffer" }
     );
-    const sheetMeta = metaResp.data.sheets || [];
-    const sheetName = sheetMeta.find(s => String(s.properties.sheetId) === SHEET_GID)
-      ?.properties.title;
-    if (!sheetName) throw new Error(`Sheet with gid ${SHEET_GID} not found`);
 
-    // Step 2: fetch columns A and G
-    const range = encodeURIComponent(`${sheetName}!A:G`);
-    const valResp = await axios.get(
-      `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}`,
-      { headers: { Authorization: `Bearer ${token}` }, timeout: 8000 }
-    );
+    // Parse with SheetJS — find the tab by gid
+    const workbook  = XLSX.read(driveResp.data, { type: "buffer" });
+    // SheetJS doesn't expose gid directly; match by sheet index or name.
+    // Try to find the right sheet: gid 276854640 → check each sheet's !ref
+    // Fall back to first sheet if we can't identify it.
+    let sheetData = null;
+    for (const name of workbook.SheetNames) {
+      const ws = workbook.Sheets[name];
+      // SheetJS stores gid in ws['!id'] for xlsx files
+      if (ws["!id"] && String(ws["!id"]) === SHEET_GID) {
+        sheetData = XLSX.utils.sheet_to_json(ws, { header: 1 });
+        break;
+      }
+    }
+    if (!sheetData) {
+      // Fall back: use the sheet whose name hints at handicaps, else first sheet
+      const hcpSheet = workbook.SheetNames.find(n => /handicap/i.test(n));
+      const ws = workbook.Sheets[hcpSheet || workbook.SheetNames[0]];
+      sheetData = XLSX.utils.sheet_to_json(ws, { header: 1 });
+    }
 
     const map = new Map();
-    for (const row of valResp.data.values || []) {
-      const surname  = (row[0] || "").trim();
-      const handicap = (row[6] || "").trim();
+    for (const row of sheetData) {
+      const surname  = String(row[0] || "").trim();
+      const handicap = String(row[6] || "").trim();
       if (surname && handicap && /^[+\-]?\d/.test(handicap)) {
         map.set(surname.toLowerCase(), handicap);
       }

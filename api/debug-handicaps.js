@@ -48,32 +48,23 @@ export default async function handler(req, res) {
       return res.status(200).json({ steps });
     }
 
-    // Step 5: get sheet metadata to find sheet name from gid
-    let sheetName;
+    // Step 5: download xlsx via Drive API
     try {
-      const mr = await axios.get(
-        `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}?fields=sheets.properties`,
-        { headers: { Authorization: `Bearer ${token}` }, timeout: 8000 }
+      const dr = await axios.get(
+        `https://www.googleapis.com/drive/v3/files/${SPREADSHEET_ID}?alt=media`,
+        { headers: { Authorization: `Bearer ${token}` }, timeout: 10000, responseType: "arraybuffer" }
       );
-      const sheets = mr.data.sheets || [];
-      sheetName = sheets.find(s => String(s.properties.sheetId) === SHEET_GID)?.properties.title;
-      steps.push({ step: "sheet_meta", ok: true, sheetName, allSheets: sheets.map(s => ({ id: s.properties.sheetId, title: s.properties.title })) });
-    } catch (e) {
-      steps.push({ step: "sheet_meta", ok: false, status: e.response?.status, body: e.response?.data });
-      return res.status(200).json({ steps });
-    }
+      steps.push({ step: "drive_download", ok: true, bytes: dr.data.byteLength });
 
-    // Step 6: fetch values via Sheets API
-    try {
-      const range = encodeURIComponent(`${sheetName}!A:G`);
-      const vr = await axios.get(
-        `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}`,
-        { headers: { Authorization: `Bearer ${token}` }, timeout: 8000 }
-      );
-      const rows = (vr.data.values || []).slice(0, 5);
-      steps.push({ step: "values_fetch", ok: true, first_5_rows: rows });
+      // Step 6: parse xlsx
+      const { default: XLSX } = await import("xlsx");
+      const wb = XLSX.read(dr.data, { type: "buffer" });
+      steps.push({ step: "xlsx_parse", ok: true, sheets: wb.SheetNames });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1 }).slice(0, 5);
+      steps.push({ step: "first_5_rows", rows });
     } catch (e) {
-      steps.push({ step: "values_fetch", ok: false, status: e.response?.status, body: e.response?.data });
+      steps.push({ step: "drive_download", ok: false, status: e.response?.status, msg: e.message, body: String(e.response?.data || "").slice(0, 300) });
     }
 
     return res.status(200).json({ steps });
