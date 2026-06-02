@@ -150,11 +150,85 @@ export function matchHandicap(playerName, handicapMap) {
   return best;
 }
 
-// Enrich a raw string[] of player names → [{name, handicap}]
-export function enrichNames(rawNames, handicapMap) {
+// ── WHS / playing handicap ────────────────────────────────────────────────────
+
+// Bramley yellow tees: Par 70, Slope 110, Course Rating 69
+const YELLOW_PAR   = 70;
+const YELLOW_SLOPE = 110;
+const YELLOW_CR    = 69;
+
+export function calculatePlayingHandicap(whsIndex) {
+  return Math.round(parseFloat(whsIndex) * (YELLOW_SLOPE / 113) + (YELLOW_CR - YELLOW_PAR));
+}
+
+// Scrape WHS indices from Bramley's handicap list page.
+// Requires an already-authenticated axios client + cookie header.
+// Returns Map<fullname_lower -> whsIndex (float)>
+export async function fetchWhsIndices(client, cookieHeader) {
+  try {
+    const resp = await client.get("/hcaplist.php", {
+      params:  { action: "masterhcap", filter: "", sort: "0" },
+      headers: { Cookie: cookieHeader },
+      timeout: 8000,
+    });
+    const cheerio = await import("cheerio");
+    const $  = cheerio.load(resp.data);
+    const map = new Map();
+    $("table.table tr").each((_i, row) => {
+      const nameEl = $(row).find("td:first-child a");
+      const idxEl  = $(row).find("td:last-child");
+      if (!nameEl.length || !idxEl.length) return;
+      const name = nameEl.text().trim();
+      const idx  = parseFloat(idxEl.text().trim());
+      if (name && !isNaN(idx)) map.set(name.toLowerCase(), idx);
+    });
+    return map;
+  } catch (err) {
+    console.error("fetchWhsIndices error:", err.message);
+    return new Map();
+  }
+}
+
+// ── Enrichment ────────────────────────────────────────────────────────────────
+
+// Match a player name against the WHS index map (full-name fuzzy match).
+// Returns { whsIndex, playingHandicap } or null.
+function matchWhs(playerName, whsMap) {
+  if (!whsMap.size) return null;
+  const key = playerName.trim().toLowerCase();
+
+  // 1. Exact full-name match
+  if (whsMap.has(key)) {
+    const idx = whsMap.get(key);
+    return { whsIndex: idx, playingHandicap: calculatePlayingHandicap(idx) };
+  }
+
+  // 2. Partial match — all tokens of player name appear in a WHS entry
+  const tokens = key.split(/\s+/);
+  for (const [whsName, idx] of whsMap) {
+    if (tokens.every(t => whsName.includes(t))) {
+      return { whsIndex: idx, playingHandicap: calculatePlayingHandicap(idx) };
+    }
+  }
+
+  return null;
+}
+
+// Enrich a raw string[] of player names → [{name, handicap, calculated}]
+// handicap    — from Google Sheet (priority)
+// calculated  — true if playing handicap was derived from WHS index (fallback)
+export function enrichNames(rawNames, handicapMap, whsMap = new Map()) {
   if (!rawNames) return null;
-  return rawNames.map(name => ({
-    name,
-    handicap: matchHandicap(name, handicapMap),
-  }));
+  return rawNames.map(name => {
+    const sheetHcp = matchHandicap(name, handicapMap);
+    if (sheetHcp !== null) {
+      return { name, handicap: sheetHcp, calculated: false };
+    }
+    // Fallback: WHS index → playing handicap for yellow tees
+    const whs = matchWhs(name, whsMap);
+    if (whs) {
+      return { name, handicap: String(whs.playingHandicap), calculated: true };
+    }
+    return { name, handicap: null, calculated: false };
+  });
 }

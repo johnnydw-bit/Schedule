@@ -1,6 +1,6 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
-import { fetchHandicapMap, enrichNames } from "./handicaps.js";
+import { fetchHandicapMap, fetchWhsIndices, enrichNames } from "./handicaps.js";
 
 const BASE_URL = "https://www.bramleygolfclub.co.uk";
 const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
@@ -261,14 +261,15 @@ async function executeOneAction(memberId, pin, date, actionType) {
     let playerCount = null;
     let playerNames = null;
     try {
-      const [freshSheet, handicapMap] = await Promise.all([
+      const [freshSheet, handicapMap, whsMap] = await Promise.all([
         fetchTeeSheet(client, cookieHeader, date),
         fetchHandicapMap(),
+        fetchWhsIndices(client, cookieHeader),
       ]);
       const freshTime = findMothsSlot(freshSheet);
       if (freshSheet && freshTime) {
         playerCount = freshSheet[freshTime].playerCount ?? null;
-        playerNames = enrichNames(freshSheet[freshTime].playerNames ?? null, handicapMap);
+        playerNames = enrichNames(freshSheet[freshTime].playerNames ?? null, handicapMap, whsMap);
       }
     } catch { /* non-critical */ }
 

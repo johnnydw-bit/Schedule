@@ -336,6 +336,14 @@
       padding-left: 12px;
       white-space: nowrap;
     }
+    #players-panel .pp-names td.pp-hcp-calc {
+      text-align: right;
+      color: #e8a020;
+      font-weight: 600;
+      padding-left: 12px;
+      white-space: nowrap;
+      font-style: italic;
+    }
     #players-panel .pp-names td.pp-hcp-none {
       text-align: right;
       color: #bbb;
@@ -588,8 +596,9 @@ function showPlayers(isoDate) {
     const rows = names.map((entry, i) => {
       const name = typeof entry === 'object' ? entry.name : entry;
       const hcp  = typeof entry === 'object' ? entry.handicap : null;
+      const calculated = typeof entry === 'object' ? entry.calculated : false;
       const hcpTd = hcp != null
-        ? `<td class="pp-hcp">${hcp}</td>`
+        ? `<td class="${calculated ? 'pp-hcp-calc' : 'pp-hcp'}" title="${calculated ? 'Playing handicap calculated from WHS index (yellow tees)' : 'From MOTHS handicap sheet'}">${hcp}</td>`
         : `<td class="pp-hcp-none">–</td>`;
       return `<tr><td>${i + 1}. ${name}</td>${hcpTd}</tr>`;
     }).join('');

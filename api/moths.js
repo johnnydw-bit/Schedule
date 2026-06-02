@@ -1,6 +1,6 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
-import { fetchHandicapMap, enrichNames } from "./handicaps.js";
+import { fetchHandicapMap, fetchWhsIndices, enrichNames } from "./handicaps.js";
 
 const BASE_URL = "https://www.bramleygolfclub.co.uk";
 const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
@@ -161,7 +161,7 @@ function buildWeeks(todayIso) {
 }
 
 async function scrapeMothsRollUps(memberId, pin) {
-  const handicapMap = await fetchHandicapMap();
+  const handicapMap = await fetchHandicapMap();  // Google Sheet (fetched in parallel with login below)
   const cookieJar = {};
   function setCookies(header) {
     if (!header) return;
@@ -218,6 +218,10 @@ async function scrapeMothsRollUps(memberId, pin) {
     throw new Error("INVALID_CREDENTIALS");
 
   const cookieSnapshot = getCookieHeader();
+
+  // Fetch WHS indices from Bramley (reuse logged-in session) in parallel with date setup
+  const whsMap = await fetchWhsIndices(client, cookieSnapshot);
+
   const todayIso = new Date().toISOString().split("T")[0];
   const weeks = buildWeeks(todayIso);
 
@@ -261,7 +265,7 @@ async function scrapeMothsRollUps(memberId, pin) {
       status:      slotStatus(sheet, mothsTime),
       entered:     slot ? slot.isEntered   : null,
       playerCount: slot ? slot.playerCount : null,
-      playerNames: slot ? enrichNames(slot.playerNames, handicapMap) : null,
+      playerNames: slot ? enrichNames(slot.playerNames, handicapMap, whsMap) : null,
     };
   }
 
