@@ -113,22 +113,31 @@ export async function fetchHandicapMap() {
   }
 }
 
-// Best-effort surname match against the first token of a player name.
-// Returns handicap string or null.
+// Best-effort surname match.
+// Scraper names are "Firstname Lastname", "First Middle Last", or "First Smith-Jones".
+// Sheet has surname only.  Try candidates in order:
+//   1. Last whitespace-token (the surname)
+//   2. Each hyphen-part of that token (for "Smith-Jones" try "smith" and "jones")
+//   3. Prefix best-match fallback
 export function matchHandicap(playerName, handicapMap) {
   if (!handicapMap.size) return null;
-  const token = playerName.trim().split(/\s+/)[0].toLowerCase();
-  if (!token) return null;
+  const parts = playerName.trim().split(/\s+/);
+  if (!parts.length) return null;
 
-  // 1. Exact
-  if (handicapMap.has(token)) return handicapMap.get(token);
+  const lastToken = parts[parts.length - 1].toLowerCase();
+  const candidates = [lastToken, ...lastToken.split("-").filter(p => p.length > 1)];
 
-  // 2. Best prefix match (longest shared prefix wins)
+  // 1. Exact match on any candidate
+  for (const c of candidates) {
+    if (handicapMap.has(c)) return handicapMap.get(c);
+  }
+
+  // 2. Prefix best-match on last token
   let best = null;
   let bestLen = 0;
   for (const [surname, hcp] of handicapMap) {
-    if (surname.startsWith(token) || token.startsWith(surname)) {
-      const len = Math.min(surname.length, token.length);
+    if (surname.startsWith(lastToken) || lastToken.startsWith(surname)) {
+      const len = Math.min(surname.length, lastToken.length);
       if (len > bestLen) { bestLen = len; best = hcp; }
     }
   }
