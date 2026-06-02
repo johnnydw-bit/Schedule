@@ -25,7 +25,7 @@ export default async function handler(req, res) {
     const now     = Math.floor(Date.now() / 1000);
     const header  = Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT" })).toString("base64url");
     const payload = Buffer.from(JSON.stringify({
-      iss: creds.client_email, scope: "https://www.googleapis.com/auth/spreadsheets.readonly",
+      iss: creds.client_email, scope: "https://www.googleapis.com/auth/drive.readonly",
       aud: "https://oauth2.googleapis.com/token", iat: now, exp: now + 3600,
     })).toString("base64url");
     const signing = `${header}.${payload}`;
