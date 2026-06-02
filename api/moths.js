@@ -1,5 +1,6 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
+import { fetchHandicapMap, enrichNames } from "./handicaps.js";
 
 const BASE_URL = "https://www.bramleygolfclub.co.uk";
 const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
@@ -160,6 +161,7 @@ function buildWeeks(todayIso) {
 }
 
 async function scrapeMothsRollUps(memberId, pin) {
+  const handicapMap = await fetchHandicapMap();
   const cookieJar = {};
   function setCookies(header) {
     if (!header) return;
@@ -259,7 +261,7 @@ async function scrapeMothsRollUps(memberId, pin) {
       status:      slotStatus(sheet, mothsTime),
       entered:     slot ? slot.isEntered   : null,
       playerCount: slot ? slot.playerCount : null,
-      playerNames: slot ? slot.playerNames : null,
+      playerNames: slot ? enrichNames(slot.playerNames, handicapMap) : null,
     };
   }
 
