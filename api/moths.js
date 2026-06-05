@@ -138,6 +138,15 @@ function slotStatus(sheet, mothsTime) {
   return mothsTime;
 }
 
+// Returns ISO date of the first day of the next calendar quarter after isoDate
+function getNextQuarterStart(isoDate) {
+  const d = new Date(isoDate + "T12:00:00Z");
+  const nextQMonth = (Math.floor(d.getUTCMonth() / 3) + 1) * 3; // 3, 6, 9, or 12
+  const year = nextQMonth >= 12 ? d.getUTCFullYear() + 1 : d.getUTCFullYear();
+  const month = nextQMonth >= 12 ? 0 : nextQMonth;
+  return new Date(Date.UTC(year, month, 1)).toISOString().split("T")[0];
+}
+
 // Generate Mon+Thu pairs starting from the current or next week for ~2 months.
 // Once this week's Thursday has passed, advance to next Monday so the
 // list always leads with upcoming games rather than already-played ones.
@@ -240,12 +249,21 @@ async function scrapeMothsRollUps(memberId, pin) {
   const cutoffIso = cutoff.toISOString().split("T")[0];
   const fetchDates = weeks.flatMap(w => [w.mon, w.thu]).filter(d => d <= cutoffIso);
 
+  // Early-stop: once both slots of the first week of the next quarter are
+  // empty (cross), the booking system hasn't opened that quarter yet — no
+  // point fetching further.
+  const nextQStart = getNextQuarterStart(todayIso);
+
   const sleep = ms => new Promise(r => setTimeout(r, ms));
 
   // Fetch in batches of 5 with 300ms gaps
   const BATCH = 5;
   const entries = [];
+  let consecutiveCross = 0;
+  let earlyStop = false;
+
   for (let i = 0; i < fetchDates.length; i += BATCH) {
+    if (earlyStop) break;
     const batch = fetchDates.slice(i, i + BATCH);
     const batchResults = await Promise.all(
       batch.map(async d => {
@@ -258,7 +276,20 @@ async function scrapeMothsRollUps(memberId, pin) {
       })
     );
     entries.push(...batchResults);
-    if (i + BATCH < fetchDates.length) await sleep(300);
+
+    // Check for early stop — two consecutive cross slots in the next quarter
+    for (const [d, sheet] of batchResults) {
+      if (d >= nextQStart && sheet !== null) {
+        if (findMothsTime(sheet) === null) {
+          consecutiveCross++;
+          if (consecutiveCross >= 2) { earlyStop = true; break; }
+        } else {
+          consecutiveCross = 0; // a booking exists — keep scanning
+        }
+      }
+    }
+
+    if (!earlyStop && i + BATCH < fetchDates.length) await sleep(300);
   }
   const sheetMap = Object.fromEntries(entries);
 
