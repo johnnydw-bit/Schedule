@@ -657,6 +657,15 @@ function renderResults(data) {
     tbody.appendChild(tr);
   });
 
+  // Early-stop message row
+  if (data.earlyStop) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td colspan="8" style="text-align:center;padding:10px 0;font-size:12px;color:#aaa;font-style:italic;">
+      No further dates scheduled for this quarter yet
+    </td>`;
+    tbody.appendChild(tr);
+  }
+
   document.getElementById('as-of').textContent =
     `Fetched ${new Date(data.fetchedAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}`;
 

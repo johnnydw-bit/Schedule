@@ -293,6 +293,11 @@ async function scrapeMothsRollUps(memberId, pin) {
   }
   const sheetMap = Object.fromEntries(entries);
 
+  // If we stopped early, trim weeks to only those actually fetched
+  const displayWeeks = earlyStop
+    ? weeks.filter(w => w.mon in sheetMap || w.thu in sheetMap)
+    : weeks;
+
   function slotData(iso) {
     if (!(iso in sheetMap)) {
       // Beyond the fetch window — booking site won't have it open yet
@@ -309,7 +314,7 @@ async function scrapeMothsRollUps(memberId, pin) {
     };
   }
 
-  const rows = weeks.map(({ mon, thu }) => {
+  const rows = displayWeeks.map(({ mon, thu }) => {
     const m = slotData(mon);
     const t = slotData(thu);
     return {
@@ -320,7 +325,7 @@ async function scrapeMothsRollUps(memberId, pin) {
     };
   });
 
-  return { rows, fetchedAt: new Date().toISOString() };
+  return { rows, earlyStop, fetchedAt: new Date().toISOString() };
 }
 
 export default async function handler(req, res) {
