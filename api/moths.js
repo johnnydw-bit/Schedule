@@ -138,12 +138,21 @@ function slotStatus(sheet, mothsTime) {
   return mothsTime;
 }
 
-// Generate Mon+Thu pairs from Monday-of-current-week for ~2 months
+// Generate Mon+Thu pairs starting from the current or next week for ~2 months.
+// Once this week's Thursday has passed, advance to next Monday so the
+// list always leads with upcoming games rather than already-played ones.
 function buildWeeks(todayIso) {
   const from = new Date(todayIso + "T12:00:00Z");
   const day = from.getUTCDay();
   const daysToMon = day === 0 ? -6 : 1 - day;
   from.setUTCDate(from.getUTCDate() + daysToMon);
+
+  // If this week's Thursday is already in the past, start from next Monday
+  const thisThu = new Date(from);
+  thisThu.setUTCDate(thisThu.getUTCDate() + 3);
+  if (thisThu.toISOString().split("T")[0] < todayIso) {
+    from.setUTCDate(from.getUTCDate() + 7);
+  }
 
   const to = new Date(todayIso + "T12:00:00Z");
   to.setUTCMonth(to.getUTCMonth() + 2);
