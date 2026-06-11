@@ -721,9 +721,43 @@ function buildCheckboxHtml(isoDate, isEntered, hasRollup, side) {
 
 // ── Open tee sheet in browser ─────────────────────────────────────────────────
 
-function openSheet(isoDate) {
-  const [y, m, d] = isoDate.split('-');
-  window.open(`https://www.bramleygolfclub.co.uk/memberbooking/?date=${d}-${m}-${y}&course=1&group=1`, '_blank');
+async function openSheet(isoDate) {
+  if (!savedCredentials) {
+    // No credentials yet — fall back to direct link
+    const [y, m, d] = isoDate.split('-');
+    window.open(`https://www.bramleygolfclub.co.uk/memberbooking/?date=${d}-${m}-${y}&course=1&group=1`, '_blank');
+    return;
+  }
+
+  // Open blank tab immediately (avoids popup blocker), then fill with proxied content
+  const win = window.open('', '_blank');
+  win.document.write(`<html><head><base href="${window.location.origin}/">
+    <style>body{font-family:-apple-system,sans-serif;display:flex;align-items:center;
+    justify-content:center;height:100vh;margin:0;background:#f0f2f5;color:#555}
+    .spinner{width:36px;height:36px;border:3px solid #ddd;border-top-color:#1a3a5c;
+    border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 16px}
+    @keyframes spin{to{transform:rotate(360deg)}}</style></head>
+    <body><div style="text-align:center">
+      <div class="spinner"></div><p>Logging in to Bramley…</p>
+    </div></body></html>`);
+
+  try {
+    const resp = await fetch('/api/tee-sheet-view', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ member_id: savedCredentials.memberId, pin: savedCredentials.pin, date: isoDate }),
+    });
+    const html = await resp.text();
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+  } catch (e) {
+    win.document.open();
+    win.document.write(`<html><body style="font-family:sans-serif;padding:40px">
+      <h2>⚠️ Could not load tee sheet</h2><p><a href="javascript:window.close()">Close</a></p>
+    </body></html>`);
+    win.document.close();
+  }
 }
 
 // ── Checkbox interaction ──────────────────────────────────────────────────────
