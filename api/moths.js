@@ -293,10 +293,8 @@ async function scrapeMothsRollUps(memberId, pin) {
   }
   const sheetMap = Object.fromEntries(entries);
 
-  // If we stopped early, trim weeks to only those actually fetched
-  const displayWeeks = earlyStop
-    ? weeks.filter(w => w.mon in sheetMap || w.thu in sheetMap)
-    : weeks;
+  // Only display weeks where at least one date was actually fetched
+  const displayWeeks = weeks.filter(w => w.mon in sheetMap || w.thu in sheetMap);
 
   function slotData(iso) {
     if (!(iso in sheetMap)) {
