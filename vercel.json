@@ -1,8 +1,12 @@
 {
   "version": 2,
   "functions": {
-    "api/*.js": {
-      "maxDuration": 60
+    "api/*.js": { "maxDuration": 60 }
+  },
+  "crons": [
+    {
+      "path": "/api/moths-notify",
+      "schedule": "0 7 * * 1,4"
     }
-  }
+  ]
 }
